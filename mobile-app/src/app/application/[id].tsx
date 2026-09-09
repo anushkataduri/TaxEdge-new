@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as DocumentPicker from "expo-document-picker";
 import { useApplicationStore } from "../../store/applicationStore";
+import { useAuthStore } from "../../store/authStore";
 import type { TimelineStep } from "../../types/domain";
 import { styles } from "../../styles/app/application/[id].styles";
 
@@ -24,7 +25,7 @@ const TABS: { id: DetailTab; label: string }[] = [
 ];
 
 function formatDisplayDate(dateStr?: string): string {
-  if (!dateStr) return "15 Aug 2026";
+  if (!dateStr) return "Today";
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   if (months.some((m) => dateStr.includes(m))) return dateStr;
   try {
@@ -32,6 +33,18 @@ function formatDisplayDate(dateStr?: string): string {
     if (!isNaN(d.getTime())) return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   } catch {}
   return dateStr;
+}
+
+function calculateExpectedDate(dateStr?: string): string {
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  try {
+    const d = dateStr ? new Date(dateStr) : new Date();
+    if (!isNaN(d.getTime())) {
+      d.setDate(d.getDate() + 2);
+      return `${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
+    }
+  } catch {}
+  return "1–2 Business Days";
 }
 
 export default function ApplicationDetailScreen() {
@@ -63,18 +76,29 @@ export default function ApplicationDetailScreen() {
     );
   }
 
-  const applicantName = app.formData?.applicantName || "Akhil Kumar";
+  const currentCustomerName = useAuthStore.getState().customer?.name;
+  const applicantName =
+    app.formData?.businessName ||
+    app.formData?.tradeName ||
+    app.formData?.applicantName ||
+    currentCustomerName ||
+    "Verified Business";
+
   const appliedDate = formatDisplayDate(app.createdAt);
-  const assignedCA = app.assignedExecutive || "CA Priya Sharma";
-  const expectedDate = "22 Aug 2026";
+  const assignedCA = app.assignedExecutive ? `CA ${app.assignedExecutive}` : "CA Vikram";
+  const expectedDate = calculateExpectedDate(app.createdAt);
   const uploadedDocs = app.documents.filter((d) => d.status === "Uploaded").length;
-  const totalAmount = app.paymentAmount + Math.round(app.paymentAmount * 0.18);
+
+  const totalAmount = app.paymentAmount;
+  const baseServiceFee = Math.round(app.paymentAmount / 1.18);
+  const gstAmount = app.paymentAmount - baseServiceFee;
+  const isPaid = app.paymentStatus === "Paid";
 
   const timelineSteps: TimelineStep[] = (app.timeline && app.timeline.length > 0) ? app.timeline : [
     { title: "Application Submitted", description: "Application filed online with documents", status: "completed", date: appliedDate },
-    { title: "Document Verification", description: "Review of premises and identity documents", status: "current", date: "16 Aug 2026" },
-    { title: "TRN Generation", description: "Temporary Reference Number creation", status: "pending" },
-    { title: "GST Certificate Issuance", description: "Final GSTIN approval from Department", status: "pending" },
+    { title: "Staff Verification", description: "CA reviewing invoices & reconciliation", status: "current", date: appliedDate },
+    { title: "Filing Submission", description: "Submission to GST portal", status: "pending" },
+    { title: "Filing Completed", description: "ARN generated and confirmation delivered", status: "pending" },
   ];
 
   const handleDocumentUpload = async (docName: string) => {
@@ -90,13 +114,13 @@ export default function ApplicationDetailScreen() {
 
   const headerInfo = {
     OVERVIEW: { nav: "Application Details", title: app.serviceName, sub: `${applicantName} • ${appliedDate}` },
-    STATUS: { nav: "Application Status", title: "Document Verification", sub: `Assigned CA: ${assignedCA} • Target: ${expectedDate}` },
+    STATUS: { nav: "Application Status", title: app.serviceId === "gst-filing" ? "Staff Verification" : "Document Verification", sub: `Assigned CA: ${assignedCA} • Target: ${expectedDate}` },
     DOCUMENTS: { nav: "Required Documents", title: "Document Uploads", sub: `${uploadedDocs} of ${app.documents.length} documents uploaded` },
     PAYMENTS: { nav: "Payment Details", title: "Invoice & Fees", sub: `Total: ₹${totalAmount.toLocaleString()} • Status: ${app.paymentStatus}` },
   }[activeTab];
 
   const overviewRows = [
-    { key: "Customer", val: applicantName },
+    { key: "Customer / Entity", val: applicantName },
     { key: "Service", val: app.serviceName },
     { key: "Application ID", val: app.id },
     { key: "Applied Date", val: appliedDate },
@@ -104,10 +128,51 @@ export default function ApplicationDetailScreen() {
     { key: "Expected Completion", val: expectedDate },
   ];
 
+  // GST Return Filing specific metadata card
+  const filingRows = app.formData?.gstin ? [
+    { key: "GSTIN", val: app.formData.gstin },
+    { key: "Business Entity", val: app.formData.businessName || app.formData.tradeName || applicantName },
+    ...(app.formData.taxpayerScheme ? [{ key: "Taxpayer Scheme", val: app.formData.taxpayerScheme }] : []),
+    ...(app.formData.filingNature ? [{ key: "Filing Nature", val: app.formData.filingNature }] : []),
+    ...(app.formData.financialYear ? [{ key: "Financial Year", val: app.formData.financialYear }] : []),
+    ...(app.formData.filingPeriod ? [{ key: "Filing Period", val: app.formData.filingPeriod }] : []),
+    ...(app.formData.filingFrequency ? [{ key: "Filing Frequency", val: app.formData.filingFrequency }] : []),
+    ...(app.formData.filingType ? [{ key: "Return Form", val: app.formData.filingType }] : []),
+    ...(app.formData.calculationMethod ? [{
+      key: "Calculation Method",
+      val: app.formData.calculationMethod === "estimated" ? "Self Estimated Figures" : "TaxEdge CA Assisted (Documents)"
+    }] : []),
+  ] : [];
+
+  // Estimated Tax Figures if supplied
+  const hasEstimates = Boolean(app.formData?.turnover || app.formData?.eligibleItc);
+  const turnoverNum = Number(app.formData?.turnover || 0);
+  const outputGstNum = Math.round(turnoverNum * 0.18);
+  const itcNum = Number(app.formData?.eligibleItc || 0);
+  const netLiabilityNum = Math.max(0, outputGstNum - itcNum);
+
+  const estimateRows = hasEstimates ? [
+    { key: "Gross Taxable Turnover", val: `₹${turnoverNum.toLocaleString()}` },
+    { key: "Estimated Output GST (18%)", val: `₹${outputGstNum.toLocaleString()}` },
+    { key: "Eligible Input Tax Credit", val: `- ₹${itcNum.toLocaleString()}` },
+    { key: "Net Tax Liability (Govt)", val: `₹${netLiabilityNum.toLocaleString()}` },
+  ] : [];
+
+  // GST Registration specific details
+  const registrationRows = (!app.formData?.gstin && app.formData?.businessName) ? [
+    { key: "Business Name", val: app.formData.businessName },
+    ...(app.formData.businessType ? [{ key: "Business Type", val: app.formData.businessType }] : []),
+    ...(app.formData.state ? [{ key: "State", val: app.formData.state }] : []),
+    ...(app.formData.pan ? [{ key: "PAN", val: app.formData.pan }] : []),
+  ] : [];
+
   const paymentRows = [
-    { key: "Service Fee", val: `₹${app.paymentAmount.toLocaleString()}` },
+    { key: "Service Fee", val: `₹${baseServiceFee.toLocaleString()}` },
     { key: "Government Fees", val: "₹0 (Included)" },
-    { key: "GST (18%)", val: `₹${Math.round(app.paymentAmount * 0.18).toLocaleString()}` },
+    { key: "Platform GST (18%)", val: `₹${gstAmount.toLocaleString()}` },
+    ...(app.formData?.transactionId ? [{ key: "Transaction ID", val: app.formData.transactionId }] : []),
+    ...(app.formData?.paymentMethod ? [{ key: "Payment Method", val: app.formData.paymentMethod }] : []),
+    { key: "Payment Date", val: appliedDate },
   ];
 
   return (
@@ -150,20 +215,93 @@ export default function ApplicationDetailScreen() {
       <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 90 }]} showsVerticalScrollIndicator={false}>
         {/* TAB 1: OVERVIEW */}
         {activeTab === "OVERVIEW" && (
-          <View style={styles.card}>
-            <View style={styles.cardHeaderRow}>
-              <Ionicons name="information-circle-outline" size={20} color="#083B75" />
-              <Text style={styles.cardHeaderTitle}>Application Info</Text>
+          <>
+            {/* General Application Info */}
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Ionicons name="information-circle-outline" size={20} color="#083B75" />
+                <Text style={styles.cardHeaderTitle}>Application Info</Text>
+              </View>
+              <View style={{ gap: 10 }}>
+                {overviewRows.map((r, i) => (
+                  <React.Fragment key={r.key}>
+                    {i > 0 && <View style={styles.infoDivider} />}
+                    <View style={styles.infoRow}>
+                      <Text style={styles.infoKey}>{r.key}</Text>
+                      <Text style={styles.infoVal}>{r.val}</Text>
+                    </View>
+                  </React.Fragment>
+                ))}
+              </View>
             </View>
-            <View style={{ gap: 10 }}>
-              {overviewRows.map((r, i) => (
-                <React.Fragment key={r.key}>
-                  {i > 0 && <View style={styles.infoDivider} />}
-                  <View style={styles.infoRow}><Text style={styles.infoKey}>{r.key}</Text><Text style={styles.infoVal}>{r.val}</Text></View>
-                </React.Fragment>
-              ))}
-            </View>
-          </View>
+
+            {/* GST Filing Details */}
+            {filingRows.length > 0 && (
+              <View style={styles.card}>
+                <View style={styles.cardHeaderRow}>
+                  <Ionicons name="document-text-outline" size={20} color="#083B75" />
+                  <Text style={styles.cardHeaderTitle}>Filing Details</Text>
+                </View>
+                <View style={{ gap: 10 }}>
+                  {filingRows.map((r, i) => (
+                    <React.Fragment key={r.key}>
+                      {i > 0 && <View style={styles.infoDivider} />}
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoKey}>{r.key}</Text>
+                        <Text style={[styles.infoVal, r.key === "GSTIN" ? { letterSpacing: 0.5, color: "#EA580C" } : null]}>
+                          {r.val}
+                        </Text>
+                      </View>
+                    </React.Fragment>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Estimated Tax Computation */}
+            {estimateRows.length > 0 && (
+              <View style={styles.card}>
+                <View style={styles.cardHeaderRow}>
+                  <Ionicons name="calculator-outline" size={20} color="#083B75" />
+                  <Text style={styles.cardHeaderTitle}>Tax Computation (Estimated)</Text>
+                </View>
+                <View style={{ gap: 10 }}>
+                  {estimateRows.map((r, i) => (
+                    <React.Fragment key={r.key}>
+                      {i > 0 && <View style={styles.infoDivider} />}
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoKey}>{r.key}</Text>
+                        <Text style={[styles.infoVal, r.key.includes("Credit") ? { color: "#059669" } : null]}>
+                          {r.val}
+                        </Text>
+                      </View>
+                    </React.Fragment>
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {/* Business Registration Details */}
+            {registrationRows.length > 0 && (
+              <View style={styles.card}>
+                <View style={styles.cardHeaderRow}>
+                  <Ionicons name="business-outline" size={20} color="#083B75" />
+                  <Text style={styles.cardHeaderTitle}>Business Registration Details</Text>
+                </View>
+                <View style={{ gap: 10 }}>
+                  {registrationRows.map((r, i) => (
+                    <React.Fragment key={r.key}>
+                      {i > 0 && <View style={styles.infoDivider} />}
+                      <View style={styles.infoRow}>
+                        <Text style={styles.infoKey}>{r.key}</Text>
+                        <Text style={styles.infoVal}>{r.val}</Text>
+                      </View>
+                    </React.Fragment>
+                  ))}
+                </View>
+              </View>
+            )}
+          </>
         )}
 
         {/* TAB 2: STATUS */}
@@ -209,7 +347,7 @@ export default function ApplicationDetailScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
               <Ionicons name="folder-open-outline" size={20} color="#083B75" />
-              <Text style={styles.cardHeaderTitle}>Required Documents</Text>
+              <Text style={styles.cardHeaderTitle}>Filing Documents</Text>
             </View>
             <View style={{ gap: 12 }}>
               {app.documents.map((doc, i) => {
@@ -217,19 +355,26 @@ export default function ApplicationDetailScreen() {
                 return (
                   <View key={i} style={styles.docItemCard}>
                     <View style={styles.docIconWrap}>
-                      <Ionicons name={isUploaded ? "checkmark-circle" : "document-text-outline"} size={24} color={isUploaded ? "#083B75" : "#EA580C"} />
+                      <Ionicons name={isUploaded ? "checkmark-circle" : "document-text-outline"} size={24} color={isUploaded ? "#059669" : "#EA580C"} />
                     </View>
-                    <View style={{ flex: 1, paddingRight: 8, justifyContent: "center" }}><Text style={styles.docNameText}>{doc.name}</Text></View>
+                    <View style={{ flex: 1, paddingRight: 8, justifyContent: "center" }}>
+                      <Text style={styles.docNameText}>{doc.name}</Text>
+                      {doc.fileUri && (
+                        <Text style={{ fontSize: 11, color: "#64748B", marginTop: 2 }} numberOfLines={1}>
+                          {doc.fileUri.split("/").pop()}
+                        </Text>
+                      )}
+                    </View>
                     {!isUploaded ? (
                       <TouchableOpacity activeOpacity={0.8} onPress={() => handleDocumentUpload(doc.name)} style={styles.uploadPeachBtn}>
                         <Text style={styles.uploadPeachBtnText}>Upload</Text>
                         <Ionicons name="cloud-upload-outline" size={15} color="#EA580C" />
                       </TouchableOpacity>
                     ) : (
-                      <TouchableOpacity activeOpacity={0.8} onPress={() => handleDocumentUpload(doc.name)} style={styles.uploadedPill}>
-                        <Ionicons name="checkmark-circle" size={14} color="#083B75" />
-                        <Text style={styles.uploadedPillText}>Uploaded</Text>
-                      </TouchableOpacity>
+                      <View style={[styles.uploadedPill, { backgroundColor: "#ECFDF5" }]}>
+                        <Ionicons name="checkmark-circle" size={14} color="#059669" />
+                        <Text style={[styles.uploadedPillText, { color: "#059669" }]}>Uploaded</Text>
+                      </View>
                     )}
                   </View>
                 );
@@ -248,19 +393,26 @@ export default function ApplicationDetailScreen() {
             <View style={{ gap: 10 }}>
               {paymentRows.map((r, i) => (
                 <React.Fragment key={r.key}>
-                  <View style={styles.infoRow}><Text style={styles.infoKey}>{r.key}</Text><Text style={styles.infoVal}>{r.val}</Text></View>
+                  <View style={styles.infoRow}>
+                    <Text style={styles.infoKey}>{r.key}</Text>
+                    <Text style={[styles.infoVal, r.key === "Transaction ID" ? { fontSize: 12.5, color: "#64748B" } : null]}>
+                      {r.val}
+                    </Text>
+                  </View>
                   <View style={styles.infoDivider} />
                 </React.Fragment>
               ))}
               <View style={styles.infoRow}>
-                <Text style={[styles.infoKey, { fontWeight: "700", color: "#0A2346" }]}>Total Amount</Text>
+                <Text style={[styles.infoKey, { fontWeight: "700", color: "#0A2346" }]}>Total Paid</Text>
                 <Text style={[styles.infoVal, { color: "#EA580C", fontSize: 16 }]}>₹{totalAmount.toLocaleString()}</Text>
               </View>
               <View style={styles.infoDivider} />
               <View style={styles.infoRow}>
                 <Text style={styles.infoKey}>Payment Status</Text>
-                <View style={[styles.statusPillSmall, { backgroundColor: app.paymentStatus === "Paid" ? "#E0F2FE" : "#FFF1E8" }]}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: app.paymentStatus === "Paid" ? "#083B75" : "#EA580C" }}>{app.paymentStatus}</Text>
+                <View style={[styles.statusPillSmall, { backgroundColor: isPaid ? "#ECFDF5" : "#FFF1E8" }]}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: isPaid ? "#059669" : "#EA580C" }}>
+                    {app.paymentStatus}
+                  </Text>
                 </View>
               </View>
             </View>
