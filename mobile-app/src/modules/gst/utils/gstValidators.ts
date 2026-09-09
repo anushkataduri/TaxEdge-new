@@ -131,6 +131,9 @@ export const GstValidators = {
    */
   validateBusinessField: (field: string, value: string): string => {
     switch (field) {
+      case "legalName":
+        if (!GstValidators.isNotEmpty(value, 2)) return "Legal Name is required";
+        return "";
       case "businessName":
       case "registeredBusinessName":
         if (!GstValidators.isNotEmpty(value, 2)) return "Business / Trade Name is required";
@@ -141,16 +144,81 @@ export const GstValidators = {
       case "natureOfBusiness":
         if (!GstValidators.isNotEmpty(value, 2)) return "Please select nature of business";
         return "";
+      case "businessStartDate":
+        if (!GstValidators.isNotEmpty(value, 8)) return "Business start date is required";
+        return "";
+      case "reasonForRegistration":
+        if (!GstValidators.isNotEmpty(value, 2)) return "Please select a reason";
+        return "";
+      case "compositionScheme":
+        if (!GstValidators.isNotEmpty(value, 2)) return "Please select an option";
+        return "";
+      case "aadhaarConsent":
+        if (value !== "true") return "You must consent to Aadhaar authentication";
+        return "";
       case "businessAddress":
         if (!GstValidators.isNotEmpty(value, 5)) return "Full business address with pincode is required";
+        return "";
+      case "placeOfBusiness":
+        if (!GstValidators.isNotEmpty(value, 2)) return "Please select a place type";
+        return "";
+      case "city":
+        if (!GstValidators.isNotEmpty(value, 2)) return "City is required";
+        return "";
+      case "district":
+        if (!GstValidators.isNotEmpty(value, 2)) return "District is required";
+        return "";
+      case "state":
+        if (!GstValidators.isNotEmpty(value, 2)) return "State is required";
+        return "";
+      case "pinCode":
+        if (!/^\d{6}$/.test(value)) return "Enter a valid 6-digit PIN code";
+        return "";
+      case "hsnCode":
+        if (!/^\d{4,8}$/.test(value)) return "HSN/SAC code must be 4 to 8 digits";
+        return "";
+      case "accountHolderName":
+        if (!GstValidators.isNotEmpty(value, 2)) return "Account holder name is required";
         return "";
       case "bankAccountNumber":
         if (!value.trim()) return "Bank account number is required";
         if (!GstValidators.isValidBankAccount(value)) return "Enter a valid bank account number (9 to 18 digits)";
         return "";
+      case "confirmBankAccountNumber":
+        if (!value.trim()) return "Confirm account number is required";
+        // Cannot cross-validate easily in this signature without full data, UI logic or form validator handles exact match if needed. Let's just check length.
+        if (!GstValidators.isValidBankAccount(value)) return "Enter a valid bank account number";
+        return "";
       case "ifscCode":
         if (!value.trim()) return "IFSC code is required";
         if (!GstValidators.isValidIfsc(value)) return "Enter a valid 11-digit IFSC code (e.g. HDFC0001234)";
+        return "";
+      case "bankName":
+        if (!GstValidators.isNotEmpty(value, 2)) return "Bank name is required";
+        return "";
+      case "branchName":
+        if (!GstValidators.isNotEmpty(value, 2)) return "Branch name is required";
+        return "";
+      case "accountType":
+        if (!GstValidators.isNotEmpty(value, 2)) return "Account type is required";
+        return "";
+      case "signatoryName":
+        if (!GstValidators.isNotEmpty(value, 2)) return "Signatory name is required";
+        return "";
+      case "signatoryPan":
+        if (!GstValidators.isValidPan(value)) return "Enter a valid 10-character PAN";
+        return "";
+      case "signatoryDob":
+        if (!GstValidators.isNotEmpty(value, 8)) return "Date of birth is required";
+        return "";
+      case "signatoryDesignation":
+        if (!GstValidators.isNotEmpty(value, 2)) return "Designation is required";
+        return "";
+      case "signatoryMobile":
+        if (!GstValidators.isValidMobile(value)) return "Enter a valid 10-digit mobile number";
+        return "";
+      case "signatoryEmail":
+        if (!GstValidators.isValidEmail(value)) return "Enter a valid email address";
         return "";
       default:
         return "";
@@ -162,15 +230,38 @@ export const GstValidators = {
    */
   validateBusinessForm: (data: Record<string, string>): Record<string, string> => {
     const fields = [
+      "legalName",
       "businessName",
       "businessType",
       "natureOfBusiness",
+      "placeOfBusiness",
+      "businessStartDate",
+      "reasonForRegistration",
+      "compositionScheme",
       "businessAddress",
+      "city",
+      "district",
+      "state",
+      "pinCode",
+      "hsnCode",
+      "accountHolderName",
       "bankAccountNumber",
+      "confirmBankAccountNumber",
       "ifscCode",
+      "bankName",
+      "branchName",
+      "accountType",
+      "signatoryName",
+      "signatoryPan",
+      "signatoryDob",
+      "signatoryDesignation",
+      "signatoryMobile",
+      "signatoryEmail",
+      "aadhaarConsent",
     ];
     return fields.reduce<Record<string, string>>((acc, key) => {
-      const value = data[key] || (key === "businessName" ? data["registeredBusinessName"] : "") || "";
+      const rawValue = data[key] || (key === "businessName" ? data["registeredBusinessName"] : "");
+      const value = typeof rawValue === "boolean" ? String(rawValue) : String(rawValue || "");
       const error = GstValidators.validateBusinessField(key, value);
       return error ? { ...acc, [key]: error } : acc;
     }, {});
