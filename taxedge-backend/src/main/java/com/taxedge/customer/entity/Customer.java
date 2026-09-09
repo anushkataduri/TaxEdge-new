@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 import com.taxedge.customer.enums.CustomerType;
+import com.taxedge.customer.enums.Gender;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -50,8 +51,30 @@ public class Customer {
     private LocalDate dob;
 
     @Enumerated(EnumType.STRING)
+    @Column(name = "gender", length = 20)
+    private Gender gender;
+
+    @Column(name = "father_spouse_name", length = 100)
+    private String fatherSpouseName;
+
+    @Enumerated(EnumType.STRING)
     @Column(name = "cust_type", length = 50, nullable = false)
     private CustomerType customerType;
+
+    @Column(name = "address_line1", length = 255)
+    private String addressLine1;
+
+    @Column(name = "address_line2", length = 255)
+    private String addressLine2;
+
+    @Column(name = "city", length = 100)
+    private String city;
+
+    @Column(name = "pincode", length = 20)
+    private String pincode;
+
+    @Column(name = "state", length = 100)
+    private String state;
 
     @Column(name = "address", length = 500)
     private String address;

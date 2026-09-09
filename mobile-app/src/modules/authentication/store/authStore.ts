@@ -13,9 +13,16 @@ const toCustomer = (u: DevUser): Customer => ({
   name: u.name,
   email: u.email,
   dob: u.dob || "",
+  gender: u.gender || "",
+  fatherSpouseName: u.fatherSpouseName || "",
   pan: u.pan || "",
   aadhaar: u.aadhaar || "",
   address: u.address || "",
+  addressLine1: u.addressLine1 || "",
+  addressLine2: u.addressLine2 || "",
+  city: u.city || "",
+  pincode: u.pincode || "",
+  state: u.state || "",
   customerType: u.customerType || "Individual",
   mobile: u.mobileNumber,
   customerId: u.customerId,
@@ -316,7 +323,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (passcode = "") => get().loginWithPasscode(passcode),
 
   register: async (profile: CustomerProfile, passcode = "123456", autoLogin = true) => {
-    const mobile = get().mobileNumber || "9876543210";
+    const mobile = (profile as any).mobileNumber || get().mobileNumber || "9876543210";
     const res = await authService.registerUser(
       {
         ...profile,

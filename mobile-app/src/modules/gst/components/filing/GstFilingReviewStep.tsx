@@ -5,6 +5,10 @@ import { BrandColors } from "../../../../shared/theme";
 
 interface GstFilingReviewStepProps {
   gstin?: string;
+  businessName?: string;
+  taxpayerScheme?: string;
+  filingNature?: string;
+  financialYear?: string;
   filingMonth?: string;
   filingType?: string;
   filingFrequency?: string;
@@ -15,6 +19,10 @@ interface GstFilingReviewStepProps {
 
 export const GstFilingReviewStep: React.FC<GstFilingReviewStepProps> = ({
   gstin = "29ABCDE1234F1Z5",
+  businessName = "Shree Deshmukh Traders",
+  taxpayerScheme = "Regular Scheme",
+  filingNature = "Regular Return",
+  financialYear = "FY 2025-26",
   filingMonth = "July 2026",
   filingType = "GSTR-3B (Monthly Summary Return)",
   filingFrequency = "Monthly",
@@ -32,7 +40,7 @@ export const GstFilingReviewStep: React.FC<GstFilingReviewStepProps> = ({
         <View style={styles.readyTextCol}>
           <Text style={styles.readyHeading}>Ready for Review</Text>
           <Text style={styles.readySub}>
-            TaxEdge CA has prepared return computation based on your uploaded records
+            TaxEdge CA has prepared return computation based on your verified business records
           </Text>
         </View>
       </View>
@@ -45,6 +53,26 @@ export const GstFilingReviewStep: React.FC<GstFilingReviewStepProps> = ({
         <View style={styles.row}>
           <Text style={styles.label}>GSTIN</Text>
           <Text style={styles.value}>{gstin || "Not Provided"}</Text>
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.label}>Business Entity</Text>
+          <Text style={styles.value}>{businessName}</Text>
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.label}>Taxpayer Scheme</Text>
+          <Text style={styles.value}>{taxpayerScheme}</Text>
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.label}>Filing Type</Text>
+          <Text style={styles.value}>{filingNature}</Text>
+        </View>
+
+        <View style={styles.row}>
+          <Text style={styles.label}>Financial Year</Text>
+          <Text style={styles.value}>{financialYear}</Text>
         </View>
 
         <View style={styles.row}>

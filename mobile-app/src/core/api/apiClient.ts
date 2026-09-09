@@ -13,19 +13,19 @@ export interface RequestOptions {
  * Server Network Configuration
  * Change IP and Port here to point the mobile app to your backend.
  */
-export const SERVER_IP = "192.168.88.69";
+export const SERVER_IP = "192.168.88.20";
+
+export const SERVER_PORT = 8088;
+
 export const SERVER_PORT = 8086;
+
 
 export function getDefaultBaseUrl(): string {
   if (Platform.OS === "web") {
     return `http://localhost:${SERVER_PORT}`;
   }
 
-  // Explicitly configured IP for backend connection
-  if (SERVER_IP) {
-    return `http://${SERVER_IP}:${SERVER_PORT}`;
-  }
-
+  // Dynamic host from Expo Go / Dev client if available
   try {
     const hostUri =
       Constants.expoConfig?.hostUri ||
@@ -40,7 +40,14 @@ export function getDefaultBaseUrl(): string {
     }
   } catch {}
 
-  return `http://192.168.88.69:${SERVER_PORT}`;
+
+  // Explicitly configured IP for backend connection
+  if (SERVER_IP) {
+    return `http://${SERVER_IP}:${SERVER_PORT}`;
+  }
+
+
+  return `http://192.168.88.20:${SERVER_PORT}`;
 }
 
 export class ApiClient {
@@ -60,51 +67,30 @@ export class ApiClient {
     this.baseUrl = url;
   }
 
-  private buildUrl(
-    path: string,
-    params?: Record<string, string | number | boolean>,
-  ): string {
-    const fullUrl = path.startsWith("http")
-      ? path
-      : `${this.baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
+  private buildUrl(path: string, params?: Record<string, string | number | boolean>): string {
+    const fullUrl = path.startsWith("http") ? path : `${this.baseUrl}${path.startsWith("/") ? "" : "/"}${path}`;
     if (!params || Object.keys(params).length === 0) {
       return fullUrl;
     }
     const query = Object.entries(params)
-      .map(
-        ([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`,
-      )
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
       .join("&");
-    return fullUrl.includes("?")
-      ? `${fullUrl}&${query}`
-      : `${fullUrl}?${query}`;
+    return fullUrl.includes("?") ? `${fullUrl}&${query}` : `${fullUrl}?${query}`;
   }
 
   async get<T>(path: string, options?: RequestOptions): Promise<T> {
     return this.request<T>("GET", path, undefined, options);
   }
 
-  async post<T>(
-    path: string,
-    body?: unknown,
-    options?: RequestOptions,
-  ): Promise<T> {
+  async post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>("POST", path, body, options);
   }
 
-  async put<T>(
-    path: string,
-    body?: unknown,
-    options?: RequestOptions,
-  ): Promise<T> {
+  async put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>("PUT", path, body, options);
   }
 
-  async patch<T>(
-    path: string,
-    body?: unknown,
-    options?: RequestOptions,
-  ): Promise<T> {
+  async patch<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T> {
     return this.request<T>("PATCH", path, body, options);
   }
 
@@ -116,7 +102,7 @@ export class ApiClient {
     method: string,
     path: string,
     body?: unknown,
-    options?: RequestOptions,
+    options?: RequestOptions
   ): Promise<T> {
     try {
       const initialUrl = this.buildUrl(path, options?.params);
@@ -132,10 +118,7 @@ export class ApiClient {
         method,
       });
 
-      console.log(
-        `🌐 [API] ${interceptedConfig.method} ${interceptedConfig.url}`,
-        body ? JSON.stringify(body) : "",
-      );
+      console.log(`🌐 [API] ${interceptedConfig.method} ${interceptedConfig.url}`, body ? JSON.stringify(body) : "");
 
       const controller = new AbortController();
       const timeoutMs = options?.timeoutMs || 10000;
@@ -153,9 +136,7 @@ export class ApiClient {
         clearTimeout(timeoutId);
       }
 
-      console.log(
-        `🌐 [API] Response status: ${response.status} for ${interceptedConfig.url}`,
-      );
+      console.log(`🌐 [API] Response status: ${response.status} for ${interceptedConfig.url}`);
 
       if (!response.ok) {
         let errorData: any = {};
@@ -169,11 +150,12 @@ export class ApiClient {
         } catch {
           errorData = { message: response.statusText };
         }
+        const message = errorData.message || errorData.error || response.statusText || "Request failed";
         throw new ApiError(
-          errorData.message || "Request failed",
+          message,
           response.status,
           errorData.code || "API_ERROR",
-          errorData.errors,
+          errorData.errors
         );
       }
 
