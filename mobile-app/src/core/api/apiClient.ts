@@ -15,6 +15,7 @@ export interface RequestOptions {
  */
 export const SERVER_IP = "192.168.88.20";
 
+
 export const SERVER_PORT = 8088;
 
 export const SERVER_PORT = 8086;
@@ -25,7 +26,16 @@ export function getDefaultBaseUrl(): string {
     return `http://localhost:${SERVER_PORT}`;
   }
 
+
   // Dynamic host from Expo Go / Dev client if available
+
+  // 1. Explicitly configured IP for backend connection (friend's backend server)
+  if (SERVER_IP) {
+    return `http://${SERVER_IP}:${SERVER_PORT}`;
+  }
+
+  // 2. Auto-detect host IP from Expo bundler if SERVER_IP is empty
+
   try {
     const hostUri =
       Constants.expoConfig?.hostUri ||
@@ -41,10 +51,12 @@ export function getDefaultBaseUrl(): string {
   } catch {}
 
 
+
   // Explicitly configured IP for backend connection
   if (SERVER_IP) {
     return `http://${SERVER_IP}:${SERVER_PORT}`;
   }
+
 
 
   return `http://192.168.88.20:${SERVER_PORT}`;
