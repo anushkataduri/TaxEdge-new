@@ -8,11 +8,14 @@ import {
   Image,
   Animated,
   StyleSheet,
+  TouchableOpacity,
+  useColorScheme,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "../../../hooks/use-theme";
-import { Spacing, BorderRadius, Typography } from "../../../shared/theme";
+import { Spacing, BorderRadius, Typography, BrandColors } from "../../../shared/theme";
 import { useAuthStore } from "../store/authStore";
 import {
   MobileNumberSection,
@@ -29,6 +32,8 @@ const MIN_SCROLL_PADDING = Spacing.xl + Spacing.xs;
 
 export function AuthenticationScreen() {
   const colors = useTheme();
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
@@ -102,22 +107,6 @@ export function AuthenticationScreen() {
   }, [authFlowState]);
 
   // Subtitle per state
-  const getSubTitle = () => {
-    switch (authFlowState) {
-      case "ENTER_MOBILE":
-      case "OTP_VERIFICATION":
-        return "Login to continue with TaxEdge";
-      case "PASSCODE_LOGIN":
-        return "Enter your passcode to sign in";
-      case "FORGOT_PASSCODE_OTP":
-        return "Verify your mobile number to reset passcode";
-      case "RESET_PASSCODE":
-        return "Set your new 6-digit login passcode";
-      default:
-        return "Login to continue with TaxEdge";
-    }
-  };
-
   const handleMobileSubmit = async () => {
     await sendOtp();
   };
@@ -167,6 +156,28 @@ export function AuthenticationScreen() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
+        {authFlowState === "RESET_PASSCODE" && (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={() => setAuthFlowState("PASSCODE_LOGIN")}
+            style={[
+              styles.backBtnAbsolute,
+              {
+                top: Math.max(insets.top + HEADER_OFFSET, MIN_SCROLL_PADDING),
+                backgroundColor: isDark ? "#1E293B" : BrandColors.WHITE,
+                borderColor: isDark ? "#334155" : "#E2E8F0",
+              },
+            ]}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+          >
+            <Ionicons
+              name="arrow-back"
+              size={20}
+              color={isDark ? "#FFFFFF" : BrandColors.PRIMARY_BLUE_DARK}
+            />
+          </TouchableOpacity>
+        )}
+
         <View style={styles.wrapper}>
           {/* Header & Branding */}
           <View style={styles.header}>
@@ -179,16 +190,20 @@ export function AuthenticationScreen() {
             <Text style={[styles.brandSub, { color: colors.textSecondary }]}>FIN SOLUTIONS</Text>
           </View>
 
-          {/* Welcome Title */}
-          <View style={styles.welcome}>
-            <Text style={[styles.welcomeTitle, { color: colors.text }]}>Welcome Back 👋</Text>
-            <Text style={[styles.welcomeSub, { color: colors.textSecondary }]}>
-              {getSubTitle()}
-            </Text>
-          </View>
+          {/* Welcome Title - Only shown on initial Mobile Number Login Screen */}
+          {authFlowState === "ENTER_MOBILE" && (
+            <View style={styles.welcome}>
+              <Text style={[styles.welcomeTitle, { color: colors.text }]}>Welcome Back 👋</Text>
+              <Text style={[styles.welcomeSub, { color: colors.textSecondary }]}>
+                Enter your mobile number
+              </Text>
+            </View>
+          )}
 
           {/* Error Banner */}
-          <ErrorBanner error={error} onDismiss={() => setError(null)} />
+          {authFlowState !== "RESET_PASSCODE" && (
+            <ErrorBanner error={error} onDismiss={() => setError(null)} />
+          )}
 
           {/* Form Body with Animated Transition */}
           <Animated.View
@@ -289,11 +304,8 @@ export function AuthenticationScreen() {
                 onChangePasscode={setPasscode}
                 onChangeConfirmPasscode={setConfirmPasscode}
                 onSubmit={handleResetPasscodeSubmit}
-                onBack={() => setAuthFlowState("PASSCODE_LOGIN")}
-                title="Create New Passcode"
-                subtitle="Enter and confirm your new 6-digit passcode"
-                submitButtonTitle="Reset Passcode"
                 loading={isLoading}
+                error={error}
               />
             )}
           </Animated.View>
@@ -317,15 +329,49 @@ const styles = StyleSheet.create({
     maxWidth: 420,
     alignSelf: "center",
   },
+  backBtnAbsolute: {
+    width: 40,
+    height: 40,
+    borderRadius: BorderRadius.base - 2,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    justifyContent: "center",
+    alignItems: "center",
+    position: "absolute",
+    left: Spacing.xl,
+    backgroundColor: BrandColors.WHITE,
+    zIndex: 10,
+    ...Platform.select({
+      ios: {
+        shadowColor: BrandColors.PRIMARY_BLUE_DARK,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.06,
+        shadowRadius: 4,
+      },
+      android: {
+        elevation: 2,
+      },
+      default: {},
+    }),
+  },
   header: {
     alignItems: "center",
     marginBottom: Spacing.xl,
+  },
+  headerResetPasscode: {
+    marginBottom: Spacing.lg,
+    alignItems: "center",
   },
   logo: {
     width: 76,
     height: 76,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
+  },
+  logoResetPasscode: {
+    width: 80,
+    height: 80,
+    marginBottom: 0,
   },
   brandTitle: {
     fontSize: Typography.fontSize.hero,

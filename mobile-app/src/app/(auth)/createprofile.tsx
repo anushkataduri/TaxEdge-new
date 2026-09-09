@@ -1,5 +1,4 @@
-
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   View,
   Text,
@@ -12,6 +11,8 @@ import {
   Alert,
   Modal,
   ActivityIndicator,
+  LayoutAnimation,
+  Keyboard,
   type TextInputProps,
 } from "react-native";
 import { useRouter } from "expo-router";
@@ -22,173 +23,323 @@ import { useTheme } from "../../hooks/use-theme";
 import { BrandColors, Colors, BorderWidth, Spacing } from "../../shared/theme";
 import { useAuthStore } from "../../store/authStore";
 import { styles } from "../../styles/app/(auth)/create-profile.styles";
-import type { IconName, ProfileFormValues } from "../../types/domain";
+import type { IconName } from "../../types/domain";
 
 const HEADER_INSET_TOP_OFFSET = Spacing.sm; // 8
 const MIN_HEADER_TOP = Spacing.xl; // 24
 
-/**
- * The signup form: the customer profile fields plus the credentials collected
- * on this screen. `password` and `confirmPassword` stay local - they are not
- * part of CustomerProfile and are never written to the store.
- */
-interface SignupForm extends ProfileFormValues {
-  customerType: string;
+interface SignupForm {
+  name: string;
+  email: string;
+  mobileNumber: string;
+  gender: string;
+  dob: string;
+  fatherSpouseName: string;
+  pan: string;
+  aadhaar: string;
+  addressLine1: string;
+  addressLine2: string;
+  city: string;
+  pincode: string;
+  state: string;
   password: string;
   confirmPassword: string;
+  customerType: string;
 }
 
 type SignupErrors = Partial<Record<keyof SignupForm, string>>;
+
+interface CustomerTypeOption {
+  key: string;
+  title: string;
+  subtitle: string;
+  icon: IconName;
+}
+
+const CUSTOMER_TYPE_OPTIONS: CustomerTypeOption[] = [
+  {
+    key: "Individual",
+    title: "Individual",
+    subtitle: "Salaried professionals & individual taxpayers",
+    icon: "person-outline",
+  },
+  {
+    key: "Proprietorship",
+    title: "Proprietorship",
+    subtitle: "Single-owner business entities & local shops",
+    icon: "storefront-outline",
+  },
+  {
+    key: "Partnership",
+    title: "Partnership",
+    subtitle: "Registered partnership firms with 2+ partners",
+    icon: "people-outline",
+  },
+  {
+    key: "LLP",
+    title: "LLP",
+    subtitle: "Limited Liability Partnership firms",
+    icon: "shield-checkmark-outline",
+  },
+  {
+    key: "Private Limited",
+    title: "Private Limited",
+    subtitle: "Pvt Ltd companies & scalable startups",
+    icon: "business-outline",
+  },
+  {
+    key: "Public Limited",
+    title: "Public Limited",
+    subtitle: "Publicly traded or listed corporations",
+    icon: "podium-outline",
+  },
+  {
+    key: "HUF",
+    title: "HUF",
+    subtitle: "Hindu Undivided Family tax units",
+    icon: "home-outline",
+  },
+  {
+    key: "AOP / BOI",
+    title: "AOP / BOI",
+    subtitle: "Association of Persons or Body of Individuals",
+    icon: "layers-outline",
+  },
+  {
+    key: "Freelancer",
+    title: "Freelancer",
+    subtitle: "Independent contractors, gig workers & consultants",
+    icon: "laptop-outline",
+  },
+  {
+    key: "NGO / Trust",
+    title: "NGO / Trust",
+    subtitle: "Non-profit entities, trusts & societies",
+    icon: "heart-outline",
+  },
+];
+
+const GENDER_OPTIONS = ["Male", "Female", "Other"];
+
+const INDIAN_STATES_AND_UTS = [
+  "Andaman and Nicobar Islands",
+  "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chandigarh",
+  "Chhattisgarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
+  "Delhi (NCT)",
+  "Goa",
+  "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jammu and Kashmir",
+  "Jharkhand",
+  "Karnataka",
+  "Kerala",
+  "Ladakh",
+  "Lakshadweep",
+  "Madhya Pradesh",
+  "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Puducherry",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
+  "Tamil Nadu",
+  "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
+];
 
 export default function CreateProfileScreen() {
   const colors = useTheme();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { register } = useAuthStore();
+  const scrollRef = useRef<ScrollView>(null);
+  const { register, mobileNumber: storeMobileNumber } = useAuthStore();
 
-  // Profile states
+  // 2-Step Navigation: Step 1 = Full Registration Form, Step 2 = Customer Type
+  const [currentStep, setCurrentStep] = useState<1 | 2>(1);
+
+  // Input Refs for smooth keyboard navigation
+  const nameRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const dobRef = useRef<TextInput>(null);
+  const fatherSpouseRef = useRef<TextInput>(null);
+  const panRef = useRef<TextInput>(null);
+  const aadhaarRef = useRef<TextInput>(null);
+  const address1Ref = useRef<TextInput>(null);
+  const address2Ref = useRef<TextInput>(null);
+  const cityRef = useRef<TextInput>(null);
+  const pinRef = useRef<TextInput>(null);
+  const passcodeRef = useRef<TextInput>(null);
+  const confirmPasscodeRef = useRef<TextInput>(null);
+
+  // Expandable Address Line 2 state
+  const [showAddressLine2, setShowAddressLine2] = useState(false);
+
+  // Form states
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileErrors, setProfileErrors] = useState<SignupErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  // Modals
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showCustomerTypeModal, setShowCustomerTypeModal] = useState(false);
+  const [showGenderModal, setShowGenderModal] = useState(false);
+  const [showStateModal, setShowStateModal] = useState(false);
+  const [stateSearchQuery, setStateSearchQuery] = useState("");
+
+  // Calendar states
   const [pickerYear, setPickerYear] = useState(2000);
   const [pickerMonth, setPickerMonth] = useState(0);
   const [pickerDay, setPickerDay] = useState(1);
 
   const months = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ];
 
-  const CUSTOMER_TYPES = [
-    "Individual",
-    "Salaried",
-    "Business",
-    "Proprietorship",
-    "Partnership",
-    "LLP",
-    "Private Limited",
-    "Company",
-    "Freelancer / Consultant",
-  ];
+  const autoMobile = storeMobileNumber || "9876543210";
 
   const [form, setForm] = useState<SignupForm>({
     name: "",
     email: "",
-    customerType: "",
-    password: "",
-    confirmPassword: "",
+    mobileNumber: autoMobile,
+    gender: "",
     dob: "",
+    fatherSpouseName: "",
     pan: "",
     aadhaar: "",
-    address: "",
+    addressLine1: "",
+    addressLine2: "",
+    city: "",
+    pincode: "",
+    state: "",
+    password: "",
+    confirmPassword: "",
+    customerType: "Individual",
   });
 
-
-  const validateField = (key: keyof SignupForm, val: string): string => {
-    switch (key) {
-      case "name":
-        return val.trim() ? "" : "Full name is required";
-      case "email": {
-        const clean = val.trim();
-        if (!clean) return "Email ID is required";
-        if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(clean)) {
-          return "Enter a valid email address";
-        }
-        return "";
-      }
-      case "pan": {
-        const clean = val.trim().toUpperCase();
-        if (!clean) return "PAN number is required";
-        if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(clean)) {
-          return "Enter a valid 10-digit PAN (e.g. ABCDE1234F)";
-        }
-        return "";
-      }
-      case "aadhaar": {
-        const clean = val.replace(/\D/g, "");
-        if (!clean) return "Aadhaar number is required";
-        if (clean.length !== 12 || !/^[2-9]{1}[0-9]{11}$/.test(clean)) {
-          return "Enter a valid 12-digit Aadhaar number";
-        }
-        return "";
-      }
-      case "customerType":
-        return val ? "" : "Account type is required";
-      case "address":
-        return val.trim() ? "" : "Address is required";
-      case "password": {
-        if (!val) return "6-digit passcode is required";
-        if (!/^\d{6}$/.test(val)) return "Passcode must be exactly 6 numeric digits";
-        return "";
-      }
-      case "confirmPassword": {
-        if (!val) return "Confirm passcode is required";
-        if (val !== form.password) return "Passcodes do not match";
-        return "";
-      }
-      case "dob":
-        return val.trim() ? "" : "Date of birth is required";
-      default:
-        return "";
+  useEffect(() => {
+    if (storeMobileNumber && storeMobileNumber !== form.mobileNumber) {
+      setForm((p) => ({ ...p, mobileNumber: storeMobileNumber }));
     }
-  };
+  }, [storeMobileNumber]);
 
   const updateForm = (key: keyof SignupForm, val: string) => {
     setForm((p) => ({ ...p, [key]: val }));
+
+    if (profileErrors[key]) {
+      setProfileErrors((p) => ({ ...p, [key]: "" }));
+    }
 
     if (key === "pan") {
       const clean = val.trim().toUpperCase();
       if (clean.length === 10) {
         setProfileErrors((p) => ({
           ...p,
-          pan: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(clean)
-            ? ""
-            : "Enter a valid 10-digit PAN (e.g. ABCDE1234F)",
+          pan: /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(clean) ? "" : "Invalid PAN",
         }));
-      } else if (profileErrors.pan && clean.length < 10) {
-        setProfileErrors((p) => ({ ...p, pan: "" }));
       }
     } else if (key === "aadhaar") {
       const clean = val.replace(/\D/g, "");
       if (clean.length === 12) {
         setProfileErrors((p) => ({
           ...p,
-          aadhaar: /^[2-9]{1}[0-9]{11}$/.test(clean)
-            ? ""
-            : "Enter a valid 12-digit Aadhaar number",
+          aadhaar: /^[2-9]{1}[0-9]{11}$/.test(clean) ? "" : "Invalid Aadhaar",
         }));
-      } else if (profileErrors.aadhaar && clean.length < 12) {
-        setProfileErrors((p) => ({ ...p, aadhaar: "" }));
       }
-    } else if (key === "email") {
-      if (
-        profileErrors.email &&
-        /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(val.trim())
-      ) {
-        setProfileErrors((p) => ({ ...p, email: "" }));
+    } else if (key === "pincode") {
+      const clean = val.replace(/\D/g, "");
+      if (clean.length === 6) {
+        setProfileErrors((p) => ({ ...p, pincode: "" }));
       }
-    } else if (key === "password") {
-      if (val.length === 6 && profileErrors.password) {
-        setProfileErrors((p) => ({ ...p, password: "" }));
-      }
-      if (form.confirmPassword) {
+    } else if (key === "password" || key === "confirmPassword") {
+      if (key === "password" && form.confirmPassword) {
         setProfileErrors((p) => ({
           ...p,
           confirmPassword: val === form.confirmPassword ? "" : "Passcodes do not match",
         }));
-      }
-    } else if (key === "confirmPassword") {
-      if (val.length === 6 || val === form.password) {
+      } else if (key === "confirmPassword" && form.password) {
         setProfileErrors((p) => ({
           ...p,
           confirmPassword: val === form.password ? "" : "Passcodes do not match",
         }));
       }
-    } else if (profileErrors[key]) {
-      setProfileErrors((p) => ({ ...p, [key]: "" }));
+    }
+  };
+
+  const validateField = (key: keyof SignupForm, val: string): string => {
+    switch (key) {
+      case "name":
+        return val.trim() ? "" : "Required";
+      case "email": {
+        const clean = val.trim();
+        if (!clean) return "Required";
+        if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(clean)) {
+          return "Invalid email";
+        }
+        return "";
+      }
+      case "gender":
+        return val ? "" : "Required";
+      case "dob":
+        return val.trim() ? "" : "Required";
+      case "fatherSpouseName":
+        return val.trim() ? "" : "Required";
+      case "pan": {
+        const clean = val.trim().toUpperCase();
+        if (!clean) return "Required";
+        if (!/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(clean)) {
+          return "Invalid PAN";
+        }
+        return "";
+      }
+      case "aadhaar": {
+        const clean = val.replace(/\D/g, "");
+        if (!clean) return "Required";
+        if (clean.length !== 12 || !/^[2-9]{1}[0-9]{11}$/.test(clean)) {
+          return "Invalid Aadhaar";
+        }
+        return "";
+      }
+      case "addressLine1":
+        return val.trim() ? "" : "Required";
+      case "city":
+        return val.trim() ? "" : "Required";
+      case "pincode": {
+        const clean = val.replace(/\D/g, "");
+        if (!clean) return "Required";
+        if (clean.length !== 6) return "PIN Code must be 6 digits";
+        return "";
+      }
+      case "state":
+        return val ? "" : "Required";
+      case "password": {
+        if (!val) return "Required";
+        if (!/^\d{6}$/.test(val)) return "Passcode must be 6 digits";
+        return "";
+      }
+      case "confirmPassword": {
+        if (!val) return "Required";
+        if (val !== form.password) return "Passcodes do not match";
+        return "";
+      }
+      case "customerType":
+        return val ? "" : "Required";
+      default:
+        return "";
     }
   };
 
@@ -236,22 +387,115 @@ export default function CreateProfileScreen() {
     const yearStr = String(pickerYear);
     updateForm("dob", `${dayStr}-${monthStr}-${yearStr}`);
     setShowDatePicker(false);
+    setTimeout(() => fatherSpouseRef.current?.focus(), 150);
   };
 
-  const handleCreateProfile = async () => {
-    const errs: SignupErrors = {};
+  // Screen 1: Complete Form Validity Check for Continue button
+  const isScreen1Valid = useMemo(() => {
+    const hasName = Boolean(form.name.trim());
+    const hasEmail = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(
+      form.email.trim()
+    );
+    const hasGender = Boolean(form.gender);
+    const hasDob = Boolean(form.dob.trim());
+    const hasFatherSpouse = Boolean(form.fatherSpouseName.trim());
+    const hasPan = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(
+      form.pan.trim().toUpperCase()
+    );
+    const hasAadhaar = /^[2-9]{1}[0-9]{11}$/.test(
+      form.aadhaar.replace(/\D/g, "")
+    );
+    const hasAddress1 = Boolean(form.addressLine1.trim());
+    const hasCity = Boolean(form.city.trim());
+    const hasPincode = form.pincode.replace(/\D/g, "").length === 6;
+    const hasState = Boolean(form.state);
+    const hasPasscode = /^\d{6}$/.test(form.password);
+    const hasConfirmPasscode =
+      form.confirmPassword === form.password && form.confirmPassword.length === 6;
 
-    (Object.keys(form) as (keyof SignupForm)[]).forEach((key) => {
-      const err = validateField(key, form[key]);
-      if (err) errs[key] = err;
+    return (
+      hasName &&
+      hasEmail &&
+      hasGender &&
+      hasDob &&
+      hasFatherSpouse &&
+      hasPan &&
+      hasAadhaar &&
+      hasAddress1 &&
+      hasCity &&
+      hasPincode &&
+      hasState &&
+      hasPasscode &&
+      hasConfirmPasscode &&
+      agreedToTerms
+    );
+  }, [form, agreedToTerms]);
+
+  // Navigate from Screen 1 to Screen 2 (Customer Type)
+  const handleProceedToCustomerType = () => {
+    const requiredKeys: (keyof SignupForm)[] = [
+      "name",
+      "email",
+      "gender",
+      "dob",
+      "fatherSpouseName",
+      "pan",
+      "aadhaar",
+      "addressLine1",
+      "city",
+      "pincode",
+      "state",
+      "password",
+      "confirmPassword",
+    ];
+
+    const errs: SignupErrors = {};
+    requiredKeys.forEach((k) => {
+      const err = validateField(k, form[k]);
+      if (err) errs[k] = err;
     });
+
+    if (!agreedToTerms) {
+      Alert.alert(
+        "Terms Required",
+        "Please accept the Terms of Service and Privacy Policy to continue."
+      );
+      return;
+    }
 
     if (Object.keys(errs).length > 0) {
       setProfileErrors(errs);
-      return Alert.alert("Incomplete Form", "Please fill in all required fields.");
+      Alert.alert(
+        "Incomplete Form",
+        "Please fill in all required fields."
+      );
+      return;
+    }
+
+    setCurrentStep(2);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
+
+  // Screen 2: Submit Full Registration Payload to Backend
+  const handleFinalRegistration = async () => {
+    if (!form.customerType) {
+      Alert.alert("Account Type Required", "Please select an account type.");
+      return;
     }
 
     setProfileLoading(true);
+
+    const fullAddress = [
+      form.addressLine1.trim(),
+      form.addressLine2.trim(),
+      form.city.trim(),
+      form.state.trim()
+        ? `${form.state.trim()} - ${form.pincode.trim()}`
+        : form.pincode.trim(),
+    ]
+      .filter(Boolean)
+      .join(", ");
+
     try {
       const res = await register(
         {
@@ -259,10 +503,18 @@ export default function CreateProfileScreen() {
           email: form.email.trim(),
           customerType: form.customerType,
           dob: form.dob.trim(),
+          gender: form.gender,
+          fatherSpouseName: form.fatherSpouseName.trim(),
           pan: form.pan.trim().toUpperCase(),
           aadhaar: form.aadhaar.replace(/\D/g, ""),
-          address: form.address.trim(),
-        },
+          address: fullAddress,
+          addressLine1: form.addressLine1.trim(),
+          addressLine2: form.addressLine2.trim(),
+          city: form.city.trim(),
+          pincode: form.pincode.trim(),
+          state: form.state.trim(),
+          mobileNumber: form.mobileNumber || storeMobileNumber,
+        } as any,
         form.password.trim(),
         true
       );
@@ -271,13 +523,36 @@ export default function CreateProfileScreen() {
       if (res.success) {
         router.replace("/(main)/home" as any);
       } else {
-        Alert.alert("Registration Error", res.error || "Failed to create account.");
+        Alert.alert(
+          "Registration Error",
+          res.error || "Failed to create account. Please try again."
+        );
       }
-    } catch (err) {
+    } catch (err: any) {
       setProfileLoading(false);
-      Alert.alert("Registration Error", "An unexpected error occurred.");
+      Alert.alert(
+        "Registration Error",
+        err?.message || "An unexpected error occurred during registration."
+      );
     }
   };
+
+  // Back Button handler
+  const handleBack = () => {
+    if (currentStep === 2) {
+      setCurrentStep(1);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    } else {
+      router.back();
+    }
+  };
+
+  // Filtered Indian States
+  const filteredStates = useMemo(() => {
+    if (!stateSearchQuery.trim()) return INDIAN_STATES_AND_UTS;
+    const q = stateSearchQuery.toLowerCase();
+    return INDIAN_STATES_AND_UTS.filter((s) => s.toLowerCase().includes(q));
+  }, [stateSearchQuery]);
 
   return (
     <KeyboardAvoidingView
@@ -286,9 +561,15 @@ export default function CreateProfileScreen() {
       style={[styles.container, { backgroundColor: BrandColors.BACKGROUND }]}
     >
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[
           styles.profileScroll,
-          { paddingBottom: Math.max(insets.bottom + Spacing.base, Spacing.lg) },
+          {
+            paddingBottom:
+              currentStep === 2
+                ? Math.max(insets.bottom + 90, 110)
+                : Math.max(insets.bottom + Spacing.base, Spacing.lg),
+          },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -297,25 +578,25 @@ export default function CreateProfileScreen() {
         {/* Top Wave Header */}
         <View style={styles.waveHeaderWrapper}>
           <Svg
-            height={195}
+            height={150}
             width="100%"
-            viewBox="0 0 375 195"
+            viewBox="0 0 375 150"
             style={StyleSheet.absoluteFill}
             preserveAspectRatio="none"
           >
             {/* Navy Blue Curved Base */}
             <Path
-              d="M0,0 L375,0 L375,130 C310,180 230,175 140,145 C60,118 20,135 0,150 Z"
+              d="M0,0 L375,0 L375,100 C310,140 230,135 140,115 C60,95 20,110 0,120 Z"
               fill={BrandColors.PRIMARY_BLUE_DARK}
             />
             {/* Orange Wave on Top Right */}
             <Path
-              d="M250,0 C290,40 335,65 375,68 L375,0 Z"
+              d="M260,0 C295,35 335,55 375,58 L375,0 Z"
               fill={BrandColors.PRIMARY_ORANGE}
             />
           </Svg>
 
-          {/* Back Arrow & Centered Header Title */}
+          {/* Back Arrow & Centered Title Only */}
           <View
             style={[
               styles.waveHeaderContent,
@@ -325,177 +606,495 @@ export default function CreateProfileScreen() {
             <View style={styles.headerRow}>
               <TouchableOpacity
                 activeOpacity={0.7}
-                onPress={() => router.back()}
+                onPress={handleBack}
                 style={styles.backBtnWhite}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
               >
                 <Ionicons name="arrow-back" size={24} color={BrandColors.WHITE} />
               </TouchableOpacity>
 
-              <Text style={styles.headerTitleWhite}>Create Account</Text>
+              <Text style={styles.headerTitleWhite}>
+                {currentStep === 1 ? "Create Account" : "Select Account Type"}
+              </Text>
             </View>
           </View>
         </View>
 
-        {/* Form Fields Section */}
-        <View style={styles.formSection}>
-          {/* 1. Full Name */}
-          <Field
-            leftIcon="person-outline"
-            value={form.name}
-            onChangeText={(t) => updateForm("name", t)}
-            onBlur={() => handleBlur("name")}
-            placeholder="Full Name"
-            error={profileErrors.name}
-          />
+        {/* ============================================================= */}
+        {/* SCREEN 1: COMPLETE REGISTRATION FORM (ONE SCROLLABLE PAGE)    */}
+        {/* ============================================================= */}
+        {currentStep === 1 && (
+          <View style={styles.formSection}>
+            {/* Full Name */}
+            <Field
+              ref={nameRef}
+              label="Full Name"
+              leftIcon="person-outline"
+              value={form.name}
+              onChangeText={(t) => updateForm("name", t)}
+              onBlur={() => handleBlur("name")}
+              placeholder="Full Name"
+              error={profileErrors.name}
+              returnKeyType="next"
+              onSubmitEditing={() => emailRef.current?.focus()}
+            />
 
-          {/* 2. Email ID */}
-          <Field
-            leftIcon="mail-outline"
-            value={form.email}
-            onChangeText={(t) => updateForm("email", t)}
-            onBlur={() => handleBlur("email")}
-            placeholder="Email ID"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            error={profileErrors.email}
-          />
+            {/* Email */}
+            <Field
+              ref={emailRef}
+              label="Email"
+              leftIcon="mail-outline"
+              value={form.email}
+              onChangeText={(t) => updateForm("email", t)}
+              onBlur={() => handleBlur("email")}
+              placeholder="Email"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={profileErrors.email}
+              returnKeyType="next"
+              onSubmitEditing={() => setShowGenderModal(true)}
+            />
 
-          {/* 3. PAN Number */}
-          <Field
-            leftIcon="card-outline"
-            value={form.pan}
-            onChangeText={(t) => updateForm("pan", t.toUpperCase())}
-            onBlur={() => handleBlur("pan")}
-            placeholder="PAN Number"
-            autoCapitalize="characters"
-            maxLength={10}
-            error={profileErrors.pan}
-          />
-
-          {/* 4. Aadhaar Number */}
-          <Field
-            leftIcon="newspaper-outline"
-            value={form.aadhaar}
-            onChangeText={(t) => updateForm("aadhaar", t.replace(/\D/g, "").slice(0, 12))}
-            onBlur={() => handleBlur("aadhaar")}
-            placeholder="Aadhaar Number"
-            keyboardType="number-pad"
-            maxLength={12}
-            error={profileErrors.aadhaar}
-          />
-
-          {/* 5. Date of Birth */}
-          <Field
-            leftIcon="calendar-outline"
-            value={form.dob}
-            onChangeText={handleDobChange}
-            placeholder="Date of Birth (DD-MM-YYYY)"
-            keyboardType="number-pad"
-            maxLength={10}
-            rightIcon="calendar-outline"
-            onRightIconPress={openCalendarModal}
-            error={profileErrors.dob}
-          />
-
-          {/* 6. Customer Type Dropdown */}
-          <View style={styles.fieldContainer}>
-            <TouchableOpacity
-              activeOpacity={0.8}
-              onPress={() => setShowCustomerTypeModal(true)}
-              style={[
-                styles.inputBox,
-                profileErrors.customerType
-                  ? { borderColor: Colors.error, backgroundColor: "#FEF2F2" }
-                  : null,
-              ]}
-            >
-              <Ionicons
-                name="briefcase-outline"
-                size={20}
-                color={BrandColors.PRIMARY_ORANGE}
-                style={styles.leftIcon}
-              />
-              <Text
+            {/* Gender */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>Gender</Text>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => setShowGenderModal(true)}
                 style={[
-                  styles.dropdownText,
-                  !form.customerType && { color: BrandColors.TEXT_MUTED },
+                  styles.inputBox,
+                  profileErrors.gender
+                    ? { borderColor: Colors.error, backgroundColor: "#FEF2F2" }
+                    : null,
                 ]}
               >
-                {form.customerType || "Select Account Type"}
-              </Text>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => setShowCustomerTypeModal(true)}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                style={styles.rightIconTouch}
-              >
+                <Ionicons
+                  name="transgender-outline"
+                  size={20}
+                  color={BrandColors.PRIMARY_ORANGE}
+                  style={styles.leftIcon}
+                />
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    !form.gender && { color: BrandColors.TEXT_MUTED },
+                  ]}
+                >
+                  {form.gender || "Gender"}
+                </Text>
                 <Ionicons
                   name="chevron-down"
                   size={20}
                   color={BrandColors.TEXT_SECONDARY}
+                  style={styles.rightIcon}
                 />
               </TouchableOpacity>
+              {profileErrors.gender ? (
+                <Text style={styles.errorText}>{profileErrors.gender}</Text>
+              ) : null}
+            </View>
+
+            {/* Date of Birth */}
+            <Field
+              ref={dobRef}
+              label="Date of Birth"
+              leftIcon="calendar-outline"
+              value={form.dob}
+              onChangeText={handleDobChange}
+              placeholder="DD-MM-YYYY"
+              keyboardType="number-pad"
+              maxLength={10}
+              rightIcon="calendar-outline"
+              onRightIconPress={openCalendarModal}
+              error={profileErrors.dob}
+              returnKeyType="next"
+              onSubmitEditing={() => fatherSpouseRef.current?.focus()}
+            />
+
+            {/* Father's / Spouse Name */}
+            <Field
+              ref={fatherSpouseRef}
+              label="Father's / Spouse Name"
+              leftIcon="people-outline"
+              value={form.fatherSpouseName}
+              onChangeText={(t) => updateForm("fatherSpouseName", t)}
+              onBlur={() => handleBlur("fatherSpouseName")}
+              placeholder="Father's / Spouse Name"
+              error={profileErrors.fatherSpouseName}
+              returnKeyType="next"
+              onSubmitEditing={() => panRef.current?.focus()}
+            />
+
+            {/* PAN Number */}
+            <Field
+              ref={panRef}
+              label="PAN Number"
+              leftIcon="card-outline"
+              value={form.pan}
+              onChangeText={(t) => updateForm("pan", t.toUpperCase())}
+              onBlur={() => handleBlur("pan")}
+              placeholder="PAN Number"
+              autoCapitalize="characters"
+              maxLength={10}
+              error={profileErrors.pan}
+              returnKeyType="next"
+              onSubmitEditing={() => aadhaarRef.current?.focus()}
+            />
+
+            {/* Aadhaar Number */}
+            <Field
+              ref={aadhaarRef}
+              label="Aadhaar Number"
+              leftIcon="newspaper-outline"
+              value={form.aadhaar}
+              onChangeText={(t) =>
+                updateForm("aadhaar", t.replace(/\D/g, "").slice(0, 12))
+              }
+              onBlur={() => handleBlur("aadhaar")}
+              placeholder="Aadhaar Number"
+              keyboardType="number-pad"
+              maxLength={12}
+              error={profileErrors.aadhaar}
+              returnKeyType="next"
+              onSubmitEditing={() => address1Ref.current?.focus()}
+            />
+
+            {/* Address Line 1 */}
+            <Field
+              ref={address1Ref}
+              label="Address Line 1 *"
+              labelRightElement={
+                !showAddressLine2 ? (
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      LayoutAnimation.configureNext(
+                        LayoutAnimation.Presets.easeInEaseOut
+                      );
+                      setShowAddressLine2(true);
+                      setTimeout(() => address2Ref.current?.focus(), 150);
+                    }}
+                    style={styles.addAddressLineBtn}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons
+                      name="add"
+                      size={16}
+                      color={BrandColors.PRIMARY_ORANGE}
+                    />
+                    <Text style={styles.addAddressLineBtnText}>Add Line 2</Text>
+                  </TouchableOpacity>
+                ) : null
+              }
+              leftIcon="home-outline"
+              value={form.addressLine1}
+              onChangeText={(t) => updateForm("addressLine1", t)}
+              onBlur={() => handleBlur("addressLine1")}
+              placeholder="House / Building / Street"
+              error={profileErrors.addressLine1}
+              returnKeyType="next"
+              onSubmitEditing={() => {
+                if (showAddressLine2) {
+                  address2Ref.current?.focus();
+                } else {
+                  cityRef.current?.focus();
+                }
+              }}
+            />
+
+            {/* Address Line 2 (Only if expanded) */}
+            {showAddressLine2 && (
+              <Field
+                ref={address2Ref}
+                label="Address Line 2 (Optional)"
+                leftIcon="location-outline"
+                value={form.addressLine2}
+                onChangeText={(t) => updateForm("addressLine2", t)}
+                placeholder="Locality, Landmark"
+                returnKeyType="next"
+                onSubmitEditing={() => cityRef.current?.focus()}
+              />
+            )}
+
+            {/* City & PIN Code (Side by side on the same row) */}
+            <View style={styles.cityPinRow}>
+              <View style={styles.cityCol}>
+                <Field
+                  ref={cityRef}
+                  label="City"
+                  leftIcon="business-outline"
+                  value={form.city}
+                  onChangeText={(t) => updateForm("city", t)}
+                  onBlur={() => handleBlur("city")}
+                  placeholder="City"
+                  error={profileErrors.city}
+                  returnKeyType="next"
+                  onSubmitEditing={() => pinRef.current?.focus()}
+                />
+              </View>
+
+              <View style={styles.pinCol}>
+                <Field
+                  ref={pinRef}
+                  label="PIN Code"
+                  leftIcon="pin-outline"
+                  value={form.pincode}
+                  onChangeText={(t) =>
+                    updateForm("pincode", t.replace(/\D/g, "").slice(0, 6))
+                  }
+                  onBlur={() => handleBlur("pincode")}
+                  placeholder="PIN Code"
+                  keyboardType="number-pad"
+                  maxLength={6}
+                  error={profileErrors.pincode}
+                  returnKeyType="next"
+                  onSubmitEditing={() => {
+                    setStateSearchQuery("");
+                    setShowStateModal(true);
+                  }}
+                />
+              </View>
+            </View>
+
+            {/* State / UT */}
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>State / UT</Text>
+              <TouchableOpacity
+                activeOpacity={0.8}
+                onPress={() => {
+                  setStateSearchQuery("");
+                  setShowStateModal(true);
+                }}
+                style={[
+                  styles.inputBox,
+                  profileErrors.state
+                    ? { borderColor: Colors.error, backgroundColor: "#FEF2F2" }
+                    : null,
+                ]}
+              >
+                <Ionicons
+                  name="map-outline"
+                  size={20}
+                  color={BrandColors.PRIMARY_ORANGE}
+                  style={styles.leftIcon}
+                />
+                <Text
+                  style={[
+                    styles.dropdownText,
+                    !form.state && { color: BrandColors.TEXT_MUTED },
+                  ]}
+                >
+                  {form.state || "State / UT"}
+                </Text>
+                <Ionicons
+                  name="chevron-down"
+                  size={20}
+                  color={BrandColors.TEXT_SECONDARY}
+                  style={styles.rightIcon}
+                />
+              </TouchableOpacity>
+              {profileErrors.state ? (
+                <Text style={styles.errorText}>{profileErrors.state}</Text>
+              ) : null}
+            </View>
+
+            {/* Passcode */}
+            <Field
+              ref={passcodeRef}
+              label="Passcode"
+              leftIcon="lock-closed-outline"
+              value={form.password}
+              onChangeText={(t) =>
+                updateForm("password", t.replace(/\D/g, "").slice(0, 6))
+              }
+              onBlur={() => handleBlur("password")}
+              placeholder="Passcode"
+              keyboardType="number-pad"
+              maxLength={6}
+              secureTextEntry={!showPassword}
+              rightIcon={showPassword ? "eye-off-outline" : "eye-outline"}
+              onRightIconPress={() => setShowPassword((prev) => !prev)}
+              error={profileErrors.password}
+              returnKeyType="next"
+              onSubmitEditing={() => confirmPasscodeRef.current?.focus()}
+            />
+
+            {/* Confirm Passcode */}
+            <Field
+              ref={confirmPasscodeRef}
+              label="Confirm Passcode"
+              leftIcon="lock-closed-outline"
+              value={form.confirmPassword}
+              onChangeText={(t) =>
+                updateForm("confirmPassword", t.replace(/\D/g, "").slice(0, 6))
+              }
+              onBlur={() => handleBlur("confirmPassword")}
+              placeholder="Confirm Passcode"
+              keyboardType="number-pad"
+              maxLength={6}
+              secureTextEntry={!showConfirmPassword}
+              rightIcon={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
+              onRightIconPress={() => setShowConfirmPassword((prev) => !prev)}
+              error={profileErrors.confirmPassword}
+              returnKeyType="done"
+              onSubmitEditing={() => Keyboard.dismiss()}
+            />
+
+            {/* Terms Checkbox */}
+            <View style={styles.termsRow}>
+              <TouchableOpacity
+                activeOpacity={0.7}
+                onPress={() => setAgreedToTerms((prev) => !prev)}
+                style={[styles.checkbox, agreedToTerms && styles.checkboxChecked]}
+              >
+                {agreedToTerms && (
+                  <Ionicons name="checkmark" size={16} color={BrandColors.WHITE} />
+                )}
+              </TouchableOpacity>
+
+              <Text style={styles.termsText}>
+                By creating an account, I agree to the{" "}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() =>
+                    Alert.alert(
+                      "Terms of Service",
+                      "By using TaxEdge, you agree to statutory Indian tax filing and compliance guidelines, confidential credential management, and authorized tax representation."
+                    )
+                  }
+                >
+                  Terms of Service
+                </Text>{" "}
+                and{" "}
+                <Text
+                  style={styles.termsLink}
+                  onPress={() =>
+                    Alert.alert(
+                      "Privacy Policy",
+                      "TaxEdge uses bank-grade 256-bit encryption to safeguard your PAN, Aadhaar, and financial records. We do not sell your data to third parties."
+                    )
+                  }
+                >
+                  Privacy Policy
+                </Text>
+                .
+              </Text>
+            </View>
+
+            {/* Continue Button */}
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={handleProceedToCustomerType}
+              disabled={!isScreen1Valid}
+              style={[
+                styles.submitBtnOrange,
+                !isScreen1Valid && styles.submitBtnDisabled,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.submitBtnText,
+                  !isScreen1Valid && styles.submitBtnTextDisabled,
+                ]}
+              >
+                Continue
+              </Text>
             </TouchableOpacity>
-            {profileErrors.customerType ? (
-              <Text style={styles.errorText}>{profileErrors.customerType}</Text>
-            ) : null}
           </View>
+        )}
 
-          {/* 7. Current Address */}
-          <Field
-            leftIcon="location-outline"
-            value={form.address}
-            onChangeText={(t) => updateForm("address", t)}
-            onBlur={() => handleBlur("address")}
-            placeholder="Current Address"
-            error={profileErrors.address}
-          />
+        {/* ============================================================= */}
+        {/* SCREEN 2: CUSTOMER TYPE SCREEN                                */}
+        {/* ============================================================= */}
+        {currentStep === 2 && (
+          <View style={styles.customerTypeContainer}>
+            {/* 10 Modern Customer Type Option Cards */}
+            {CUSTOMER_TYPE_OPTIONS.map((opt) => {
+              const isSelected = form.customerType === opt.key;
+              return (
+                <TouchableOpacity
+                  key={opt.key}
+                  activeOpacity={0.8}
+                  onPress={() => updateForm("customerType", opt.key)}
+                  style={[
+                    styles.customerTypeCard,
+                    isSelected && styles.customerTypeCardSelected,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.cardIconContainer,
+                      isSelected && styles.cardIconContainerSelected,
+                    ]}
+                  >
+                    <Ionicons
+                      name={opt.icon}
+                      size={22}
+                      color={
+                        isSelected
+                          ? BrandColors.PRIMARY_ORANGE
+                          : BrandColors.PRIMARY_BLUE
+                      }
+                    />
+                  </View>
 
-          {/* 8. Create Passcode */}
-          <Field
-            leftIcon="lock-closed-outline"
-            value={form.password}
-            onChangeText={(t) => updateForm("password", t.replace(/\D/g, "").slice(0, 6))}
-            onBlur={() => handleBlur("password")}
-            placeholder="Create Passcode"
-            keyboardType="number-pad"
-            maxLength={6}
-            secureTextEntry={!showPassword}
-            rightIcon={showPassword ? "eye-off-outline" : "eye-outline"}
-            onRightIconPress={() => setShowPassword((prev) => !prev)}
-            error={profileErrors.password}
-          />
+                  <View style={styles.cardContent}>
+                    <Text
+                      style={[
+                        styles.cardTitle,
+                        isSelected && styles.cardTitleSelected,
+                      ]}
+                    >
+                      {opt.title}
+                    </Text>
+                    <Text style={styles.cardSubtitle}>{opt.subtitle}</Text>
+                  </View>
 
-          {/* 9. Confirm 6-Digit Passcode */}
-          <Field
-            leftIcon="lock-closed-outline"
-            value={form.confirmPassword}
-            onChangeText={(t) => updateForm("confirmPassword", t.replace(/\D/g, "").slice(0, 6))}
-            onBlur={() => handleBlur("confirmPassword")}
-            placeholder="Confirm 6-Digit Passcode"
-            keyboardType="number-pad"
-            maxLength={6}
-            secureTextEntry={!showConfirmPassword}
-            rightIcon={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
-            onRightIconPress={() => setShowConfirmPassword((prev) => !prev)}
-            error={profileErrors.confirmPassword}
-          />
+                  <View
+                    style={[
+                      styles.radioCircle,
+                      isSelected && styles.radioCircleSelected,
+                    ]}
+                  >
+                    {isSelected && (
+                      <Ionicons
+                        name="checkmark"
+                        size={14}
+                        color={BrandColors.WHITE}
+                      />
+                    )}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        )}
+      </ScrollView>
 
-          {/* Register CTA Button */}
+      {/* Fixed Bottom Button for Screen 2: Continue Registration */}
+      {currentStep === 2 && (
+        <View
+          style={[
+            styles.fixedBottomBar,
+            {
+              paddingBottom: Math.max(insets.bottom + Spacing.sm, Spacing.base),
+            },
+          ]}
+        >
           <TouchableOpacity
             activeOpacity={0.85}
-            onPress={handleCreateProfile}
-            disabled={profileLoading}
+            onPress={handleFinalRegistration}
+            disabled={profileLoading || !form.customerType}
             style={styles.submitBtnOrange}
           >
             {profileLoading ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <ActivityIndicator color={BrandColors.WHITE} size="small" />
             ) : (
-              <Text style={styles.submitBtnText}>Register</Text>
+              <Text style={styles.submitBtnText}>Continue Registration</Text>
             )}
           </TouchableOpacity>
         </View>
-      </ScrollView>
+      )}
 
       {/* Calendar Modal */}
       <Modal
@@ -513,18 +1112,14 @@ export default function CreateProfileScreen() {
           >
             {/* Modal Header */}
             <View style={styles.calendarHeader}>
-              <Text style={[styles.calendarTitle, { color: "#083B75" }]}>
+              <Text style={[styles.calendarTitle, { color: BrandColors.PRIMARY_BLUE }]}>
                 Select Date of Birth
               </Text>
               <TouchableOpacity
                 onPress={() => setShowDatePicker(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Ionicons
-                  name="close"
-                  size={22}
-                  color="#64748B"
-                />
+                <Ionicons name="close" size={22} color="#64748B" />
               </TouchableOpacity>
             </View>
 
@@ -541,11 +1136,20 @@ export default function CreateProfileScreen() {
                 }}
                 style={styles.navArrow}
               >
-                <Ionicons name="chevron-back" size={18} color="#083B75" />
+                <Ionicons
+                  name="chevron-back"
+                  size={18}
+                  color={BrandColors.PRIMARY_BLUE}
+                />
               </TouchableOpacity>
 
               <View style={styles.monthYearDisplay}>
-                <Text style={[styles.monthYearText, { color: "#083B75" }]}>
+                <Text
+                  style={[
+                    styles.monthYearText,
+                    { color: BrandColors.PRIMARY_BLUE },
+                  ]}
+                >
                   {months[pickerMonth]} {pickerYear}
                 </Text>
               </View>
@@ -561,7 +1165,11 @@ export default function CreateProfileScreen() {
                 }}
                 style={styles.navArrow}
               >
-                <Ionicons name="chevron-forward" size={18} color="#083B75" />
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={BrandColors.PRIMARY_BLUE}
+                />
               </TouchableOpacity>
             </View>
 
@@ -609,7 +1217,7 @@ export default function CreateProfileScreen() {
                     style={[
                       styles.dayCell,
                       isSelected && {
-                        backgroundColor: "#083B75",
+                        backgroundColor: BrandColors.PRIMARY_BLUE,
                       },
                     ]}
                   >
@@ -617,9 +1225,7 @@ export default function CreateProfileScreen() {
                       style={[
                         styles.dayCellText,
                         {
-                          color: isSelected
-                            ? "#FFFFFF"
-                            : colors.text,
+                          color: isSelected ? BrandColors.WHITE : colors.text,
                         },
                       ]}
                     >
@@ -634,10 +1240,7 @@ export default function CreateProfileScreen() {
             <View style={styles.modalButtonsRow}>
               <TouchableOpacity
                 onPress={() => setShowDatePicker(false)}
-                style={[
-                  styles.modalCancelBtn,
-                  { borderColor: "#BFDBFE" },
-                ]}
+                style={[styles.modalCancelBtn, { borderColor: "#BFDBFE" }]}
               >
                 <Text style={[styles.modalCancelText, { color: colors.text }]}>
                   Cancel
@@ -648,7 +1251,7 @@ export default function CreateProfileScreen() {
                 onPress={confirmCalendarDate}
                 style={[
                   styles.modalConfirmBtn,
-                  { backgroundColor: "#F97316" },
+                  { backgroundColor: BrandColors.PRIMARY_ORANGE },
                 ]}
               >
                 <Text style={styles.modalConfirmText}>Apply Date</Text>
@@ -658,66 +1261,149 @@ export default function CreateProfileScreen() {
         </View>
       </Modal>
 
-      {/* Customer Type Selection Modal */}
+      {/* Gender Selection Modal */}
       <Modal
-        visible={showCustomerTypeModal}
+        visible={showGenderModal}
         transparent
         animationType="fade"
-        onRequestClose={() => setShowCustomerTypeModal(false)}
+        onRequestClose={() => setShowGenderModal(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.customerTypeModalContent}>
+          <View style={styles.genderModalContent}>
             <View style={styles.calendarHeader}>
-              <Text style={[styles.calendarTitle, { color: "#00204A" }]}>
-                Select Account Type
+              <Text
+                style={[
+                  styles.calendarTitle,
+                  { color: BrandColors.PRIMARY_BLUE_DARK },
+                ]}
+              >
+                Select Gender
               </Text>
               <TouchableOpacity
-                onPress={() => setShowCustomerTypeModal(false)}
+                onPress={() => setShowGenderModal(false)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
                 <Ionicons name="close" size={22} color="#64748B" />
               </TouchableOpacity>
             </View>
 
-            <ScrollView
-              style={{ maxHeight: 380 }}
-              showsVerticalScrollIndicator={false}
-            >
-              {CUSTOMER_TYPES.map((type) => {
-                const isSelected = form.customerType === type;
-                return (
-                  <TouchableOpacity
-                    key={type}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      updateForm("customerType", type);
-                      setShowCustomerTypeModal(false);
-                    }}
+            {GENDER_OPTIONS.map((g) => {
+              const isSelected = form.gender === g;
+              return (
+                <TouchableOpacity
+                  key={g}
+                  activeOpacity={0.7}
+                  onPress={() => {
+                    updateForm("gender", g);
+                    setShowGenderModal(false);
+                    setTimeout(() => dobRef.current?.focus(), 150);
+                  }}
+                  style={[
+                    styles.genderOption,
+                    isSelected && styles.genderOptionSelected,
+                  ]}
+                >
+                  <Text
                     style={[
-                      styles.customerTypeOption,
-                      isSelected && styles.customerTypeOptionSelected,
+                      styles.genderOptionText,
+                      isSelected && styles.genderOptionTextSelected,
                     ]}
                   >
-                    <View style={styles.customerTypeOptionLeft}>
-                      <Ionicons
-                        name={isSelected ? "checkmark-circle" : "ellipse-outline"}
-                        size={20}
-                        color={isSelected ? "#F97316" : "#94A3B8"}
-                        style={{ marginRight: 12 }}
-                      />
-                      <Text
-                        style={[
-                          styles.customerTypeOptionText,
-                          isSelected && styles.customerTypeOptionTextSelected,
-                        ]}
-                      >
-                        {type}
-                      </Text>
-                    </View>
+                    {g}
+                  </Text>
+                  {isSelected && (
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={20}
+                      color={BrandColors.PRIMARY_ORANGE}
+                    />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      </Modal>
+
+      {/* State / UT Selection Modal */}
+      <Modal
+        visible={showStateModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowStateModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.stateModalContent}>
+            <View style={styles.calendarHeader}>
+              <Text
+                style={[
+                  styles.calendarTitle,
+                  { color: BrandColors.PRIMARY_BLUE_DARK },
+                ]}
+              >
+                Select State / UT
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowStateModal(false)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="close" size={22} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+
+            {/* Search Box */}
+            <View style={styles.stateSearchBox}>
+              <Ionicons
+                name="search-outline"
+                size={18}
+                color={BrandColors.TEXT_MUTED}
+              />
+              <TextInput
+                style={styles.stateSearchInput}
+                value={stateSearchQuery}
+                onChangeText={setStateSearchQuery}
+                placeholder="Search State / UT"
+                placeholderTextColor={BrandColors.TEXT_MUTED}
+              />
+              {stateSearchQuery ? (
+                <TouchableOpacity onPress={() => setStateSearchQuery("")}>
+                  <Ionicons name="close-circle" size={18} color="#94A3B8" />
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
+            {/* State List */}
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {filteredStates.map((s) => {
+                const isSelected = form.state === s;
+                return (
+                  <TouchableOpacity
+                    key={s}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      updateForm("state", s);
+                      setShowStateModal(false);
+                      setTimeout(() => passcodeRef.current?.focus(), 150);
+                    }}
+                    style={[
+                      styles.stateItem,
+                      isSelected && styles.stateItemSelected,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.stateItemText,
+                        isSelected && styles.stateItemTextSelected,
+                      ]}
+                    >
+                      {s}
+                    </Text>
                     {isSelected && (
-                      <View style={styles.selectedBadge}>
-                        <Text style={styles.selectedBadgeText}>Selected</Text>
-                      </View>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={18}
+                        color={BrandColors.PRIMARY_ORANGE}
+                      />
                     )}
                   </TouchableOpacity>
                 );
@@ -736,6 +1422,7 @@ interface FieldProps
     "value" | "onChangeText" | "placeholder" | "style" | "onBlur"
   > {
   label?: string;
+  labelRightElement?: React.ReactNode;
   leftIcon?: IconName;
   value: string;
   onChangeText: (text: string) => void;
@@ -746,39 +1433,54 @@ interface FieldProps
   error?: string;
 }
 
-function Field({
-  label,
-  leftIcon,
-  value,
-  onChangeText,
-  onBlur,
-  placeholder,
-  rightIcon,
-  onRightIconPress,
-  error,
-  keyboardType,
-  maxLength,
-  ...props
-}: FieldProps) {
+const Field = React.forwardRef<TextInput, FieldProps>(function Field(
+  {
+    label,
+    labelRightElement,
+    leftIcon,
+    value,
+    onChangeText,
+    onBlur,
+    placeholder,
+    rightIcon,
+    onRightIconPress,
+    error,
+    keyboardType,
+    maxLength,
+    returnKeyType,
+    onSubmitEditing,
+    ...props
+  },
+  ref
+) {
   const [isFocused, setIsFocused] = useState(false);
 
   return (
     <View style={styles.fieldContainer}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? (
+        labelRightElement ? (
+          <View style={styles.labelWithActionRow}>
+            <Text style={styles.label}>{label}</Text>
+            {labelRightElement}
+          </View>
+        ) : (
+          <Text style={styles.label}>{label}</Text>
+        )
+      ) : null}
       <View
         style={[
           styles.inputBox,
           error
             ? {
-              borderColor: Colors.error,
-              backgroundColor: "#FEF2F2",
-            }
+                borderColor: Colors.error,
+                backgroundColor: "#FEF2F2",
+              }
             : {
-              borderColor: isFocused
-                ? BrandColors.PRIMARY_ORANGE
-                : BrandColors.BORDER,
-              backgroundColor: BrandColors.WHITE,
-            },
+                borderColor: isFocused
+                  ? BrandColors.PRIMARY_ORANGE
+                  : BrandColors.BORDER,
+                backgroundColor: BrandColors.WHITE,
+              },
           {
             borderWidth: isFocused || error ? BorderWidth.regular : BorderWidth.thin,
           },
@@ -793,6 +1495,7 @@ function Field({
           />
         )}
         <TextInput
+          ref={ref}
           style={styles.input}
           value={value}
           onChangeText={onChangeText}
@@ -805,6 +1508,8 @@ function Field({
           placeholderTextColor={BrandColors.TEXT_MUTED}
           keyboardType={keyboardType}
           maxLength={maxLength}
+          returnKeyType={returnKeyType}
+          onSubmitEditing={onSubmitEditing}
           {...props}
         />
         {rightIcon &&
@@ -815,7 +1520,11 @@ function Field({
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={styles.rightIconTouch}
             >
-              <Ionicons name={rightIcon} size={20} color={BrandColors.TEXT_SECONDARY} />
+              <Ionicons
+                name={rightIcon}
+                size={20}
+                color={BrandColors.TEXT_SECONDARY}
+              />
             </TouchableOpacity>
           ) : (
             <Ionicons
@@ -829,5 +1538,4 @@ function Field({
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
-}
-
+});

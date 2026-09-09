@@ -22,7 +22,7 @@ import { styles } from "../../../../styles/app/(auth)/otp.styles";
 export function OTPVerificationScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { mobileNumber } = useAuthStore();
+  const { mobileNumber, verifyOtp, resendOtp } = useAuthStore();
 
   const [otp, setOtp] = useState("");
   const [error, setError] = useState("");
@@ -40,20 +40,38 @@ export function OTPVerificationScreen() {
     return () => clearInterval(interval);
   }, [timer]);
 
-  const handleVerifyOtp = () => {
+  const handleVerifyOtp = async (codeToVerify?: string) => {
+    const code = codeToVerify || otp;
+    if (code.length !== 6) {
+      setError("Please enter the complete 6-digit code");
+      return;
+    }
     setError("");
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const res = await verifyOtp(code);
       setLoading(false);
-      router.push("/(auth)/createprofile");
-    }, 250);
+      if (res.success) {
+        if (res.isExistingUser) {
+          router.replace("/(auth)/passcode" as any);
+        } else {
+          router.replace("/(auth)/createprofile" as any);
+        }
+      } else {
+        setError("Invalid OTP. Please check the code and try again.");
+      }
+    } catch (err: any) {
+      setLoading(false);
+      setError(err?.message || "Failed to verify OTP.");
+    }
   };
 
-  const handleResend = () => {
+  const handleResend = async () => {
     if (timer === 0) {
       setTimer(30);
       setOtp("");
       setError("");
+      await resendOtp();
       Alert.alert("OTP Resent", "A new verification code has been sent.");
     }
   };
@@ -130,9 +148,7 @@ export function OTPVerificationScreen() {
               setOtp(clean);
               if (error) setError("");
               if (clean.length === 6) {
-                setTimeout(() => {
-                  router.push("/(auth)/createprofile");
-                }, 200);
+                handleVerifyOtp(clean);
               }
             }}
             keyboardType="number-pad"
