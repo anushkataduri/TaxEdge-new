@@ -55,7 +55,18 @@
           "color": "#0066CC"
         }
       ],
+
       "@react-native-community/datetimepicker"
+
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+
     ],
     "experiments": {
       "typedRoutes": true,
@@ -70,3 +81,4 @@
     "owner": "srinivas12345678"
   }
 }
+ 

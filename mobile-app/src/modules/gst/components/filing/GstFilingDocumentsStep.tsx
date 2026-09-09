@@ -16,15 +16,18 @@ import { pickImageFromGallery, pickImageFromCamera } from "../../utils/imageUplo
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
+export type DocumentBadgeType = "Required" | "Recommended" | "Conditional" | "Optional";
+
 export interface FilingDocItem {
   id: string;
   name: string;
   subtitle: string;
   required: boolean;
+  badgeType?: DocumentBadgeType;
   iconName: string;
   iconBg: string;
   iconColor: string;
-  category: "Sales & Outward Supplies" | "Purchases & Input Tax" | "Banking & Reconciliation";
+  category: "Sales & Outward Supplies" | "Purchases & Input Tax" | "Banking & Reconciliation" | "Statutory & Compliance";
   fileUri?: string;
   fileName?: string;
   fileSize?: string;
@@ -34,39 +37,87 @@ export interface FilingDocItem {
 export const INITIAL_FILING_DOCS: FilingDocItem[] = [
   {
     id: "sales-invoices",
-    name: "Sales Invoices (B2B & B2C)",
+    name: "Sales Invoices / Register",
     subtitle: "Outward supply bill book / tax invoices",
     required: true,
+    badgeType: "Required",
     iconName: "document-text",
     iconBg: "#E0F2FE",
     iconColor: "#0284C7",
     category: "Sales & Outward Supplies",
   },
   {
-    id: "credit-debit-notes",
-    name: "Credit & Debit Notes",
-    subtitle: "Issued during the tax period",
+    id: "credit-notes",
+    name: "Credit Notes",
+    subtitle: "Issued during the period for sales returns",
     required: false,
-    iconName: "swap-horizontal",
+    badgeType: "Conditional",
+    iconName: "arrow-undo",
     iconBg: "#FEF3C7",
     iconColor: "#D97706",
     category: "Sales & Outward Supplies",
   },
   {
+    id: "debit-notes",
+    name: "Debit Notes",
+    subtitle: "Issued for rate differences or added tax",
+    required: false,
+    badgeType: "Conditional",
+    iconName: "arrow-redo",
+    iconBg: "#FEF3C7",
+    iconColor: "#D97706",
+    category: "Sales & Outward Supplies",
+  },
+  {
+    id: "e-invoice",
+    name: "E-Invoice Data (IRN)",
+    subtitle: "JSON / PDF files where applicable for B2B",
+    required: false,
+    badgeType: "Conditional",
+    iconName: "barcode-outline",
+    iconBg: "#E0F2FE",
+    iconColor: "#2563EB",
+    category: "Sales & Outward Supplies",
+  },
+  {
+    id: "e-way-bill",
+    name: "E-Way Bill Data",
+    subtitle: "Consolidated transit bills for goods movement",
+    required: false,
+    badgeType: "Conditional",
+    iconName: "car-outline",
+    iconBg: "#E0F2FE",
+    iconColor: "#2563EB",
+    category: "Sales & Outward Supplies",
+  },
+  {
     id: "purchase-invoices",
-    name: "Purchase Invoices (GSTR-2B ITC)",
+    name: "Purchase Invoices / Register",
     subtitle: "Inward supply tax invoices with GSTIN",
     required: true,
+    badgeType: "Required",
     iconName: "file-tray-full",
     iconBg: "#DCFCE7",
     iconColor: "#16A34A",
     category: "Purchases & Input Tax",
   },
   {
+    id: "gstr-2b",
+    name: "GSTR-2B ITC Statement",
+    subtitle: "Auto-drafted ITC statement from GST portal",
+    required: true,
+    badgeType: "Required",
+    iconName: "shield-checkmark-outline",
+    iconBg: "#DCFCE7",
+    iconColor: "#16A34A",
+    category: "Purchases & Input Tax",
+  },
+  {
     id: "expense-bills",
-    name: "Expense Bills & Rent Vouchers",
+    name: "Expense Invoices & Vouchers",
     subtitle: "Electricity, telephone, logistics, rent",
     required: false,
+    badgeType: "Recommended",
     iconName: "receipt",
     iconBg: "#F3E8FF",
     iconColor: "#7E22CE",
@@ -75,22 +126,46 @@ export const INITIAL_FILING_DOCS: FilingDocItem[] = [
   {
     id: "bank-statement",
     name: "Bank Statement / Passbook",
-    subtitle: "Monthly statement showing UPI/NEFT sales receipts",
-    required: true,
+    subtitle: "Monthly statement showing sales & expense flows",
+    required: false,
+    badgeType: "Recommended",
     iconName: "business",
     iconBg: "#FEF0E6",
     iconColor: BrandColors.PRIMARY_ORANGE,
     category: "Banking & Reconciliation",
   },
   {
-    id: "prev-gst-data",
-    name: "Previous Month GSTR-3B Acknowledgement",
-    subtitle: "Previous return copy for ITC balance carry forward",
+    id: "prev-gst-returns",
+    name: "Previous GST Returns",
+    subtitle: "Copies of previous GSTR-1 & GSTR-3B filings",
     required: false,
+    badgeType: "Recommended",
     iconName: "folder-open",
     iconBg: "#E0F2FE",
     iconColor: "#2563EB",
     category: "Banking & Reconciliation",
+  },
+  {
+    id: "prev-gst-ack",
+    name: "Previous Filing Acknowledgement",
+    subtitle: "ARN receipt copy for ITC balance carry-forward",
+    required: false,
+    badgeType: "Recommended",
+    iconName: "receipt-outline",
+    iconBg: "#E0F2FE",
+    iconColor: "#2563EB",
+    category: "Banking & Reconciliation",
+  },
+  {
+    id: "other-docs",
+    name: "Other Supporting Documents",
+    subtitle: "Challans, ledgers, or CA reconciliation notes",
+    required: false,
+    badgeType: "Optional",
+    iconName: "attach-outline",
+    iconBg: "#F1F5F9",
+    iconColor: "#64748B",
+    category: "Statutory & Compliance",
   },
 ];
 
@@ -98,12 +173,14 @@ interface GstFilingDocumentsStepProps {
   documents?: FilingDocItem[];
   onUpdateDocuments?: (updatedDocs: FilingDocItem[]) => void;
   filingPeriodText?: string;
+  filingNature?: "Regular Return" | "Nil Return";
 }
 
 export const GstFilingDocumentsStep: React.FC<GstFilingDocumentsStepProps> = ({
   documents: externalDocuments,
   onUpdateDocuments,
   filingPeriodText = "GSTR-3B — July 2026",
+  filingNature = "Regular Return",
 }) => {
   const [internalDocs, setInternalDocs] = useState<FilingDocItem[]>(INITIAL_FILING_DOCS);
   const [previewDoc, setPreviewDoc] = useState<FilingDocItem | null>(null);
@@ -130,6 +207,7 @@ export const GstFilingDocumentsStep: React.FC<GstFilingDocumentsStepProps> = ({
     "Sales & Outward Supplies",
     "Purchases & Input Tax",
     "Banking & Reconciliation",
+    "Statutory & Compliance",
   ];
 
   const handleUploadOption = async (docId: string, source: "gallery" | "camera") => {
@@ -194,6 +272,19 @@ export const GstFilingDocumentsStep: React.FC<GstFilingDocumentsStepProps> = ({
           Upload documents for <Text style={styles.boldText}>{filingPeriodText}</Text>. Clear invoices ensure 100% accurate Input Tax Credit (ITC) claim.
         </Text>
       </View>
+
+      {/* Nil Return Informative Banner */}
+      {filingNature === "Nil Return" && (
+        <View style={styles.nilBanner}>
+          <Ionicons name="checkmark-done-circle" size={22} color="#15803D" />
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={styles.nilBannerTitle}>Nil Return Selected</Text>
+            <Text style={styles.nilBannerSub}>
+              Since you have zero sales & purchases for this period, invoice uploads are not required. You can optionally upload a bank statement or proceed directly to review.
+            </Text>
+          </View>
+        </View>
+      )}
 
       {/* Progress Card */}
       <View style={styles.progressCard}>
@@ -263,23 +354,53 @@ export const GstFilingDocumentsStep: React.FC<GstFilingDocumentsStepProps> = ({
                       <View
                         style={[
                           styles.statusBadge,
-                          isUploaded ? styles.statusUploaded : styles.statusPending,
+                          isUploaded
+                            ? styles.statusUploaded
+                            : doc.badgeType === "Recommended"
+                            ? styles.statusRecommended
+                            : doc.badgeType === "Conditional"
+                            ? styles.statusConditional
+                            : doc.required && filingNature !== "Nil Return"
+                            ? styles.statusRequired
+                            : styles.statusOptional,
                         ]}
                       >
                         <Ionicons
                           name={isUploaded ? "checkmark-circle" : "ellipse-outline"}
                           size={12}
-                          color={isUploaded ? "#059669" : "#94A3B8"}
+                          color={
+                            isUploaded
+                              ? "#059669"
+                              : doc.badgeType === "Recommended"
+                              ? "#D97706"
+                              : doc.badgeType === "Conditional"
+                              ? "#2563EB"
+                              : doc.required && filingNature !== "Nil Return"
+                              ? "#DC2626"
+                              : "#64748B"
+                          }
                         />
                         <Text
                           style={[
                             styles.statusBadgeText,
                             isUploaded
                               ? styles.statusUploadedText
-                              : styles.statusPendingText,
+                              : doc.badgeType === "Recommended"
+                              ? styles.statusRecommendedText
+                              : doc.badgeType === "Conditional"
+                              ? styles.statusConditionalText
+                              : doc.required && filingNature !== "Nil Return"
+                              ? styles.statusRequiredText
+                              : styles.statusOptionalText,
                           ]}
                         >
-                          {isUploaded ? "Uploaded" : doc.required ? "Required" : "Optional"}
+                          {isUploaded
+                            ? "Uploaded"
+                            : filingNature === "Nil Return"
+                            ? "Optional"
+                            : doc.badgeType === "Conditional"
+                            ? "If applicable"
+                            : doc.badgeType || (doc.required ? "Required" : "Optional")}
                         </Text>
                       </View>
                     </View>
@@ -582,21 +703,63 @@ const styles = StyleSheet.create({
     gap: 4,
     marginLeft: 6,
   },
-  statusUploaded: {
-    backgroundColor: "#ECFDF5",
-  },
-  statusPending: {
-    backgroundColor: "#F8FAFC",
-  },
   statusBadgeText: {
     fontSize: 11,
     fontWeight: "600",
   },
+  nilBanner: {
+    flexDirection: "row",
+    backgroundColor: "#F0FDF4",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#BBF7D0",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  nilBannerTitle: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#15803D",
+    marginBottom: 2,
+  },
+  nilBannerSub: {
+    fontSize: 12,
+    color: "#166534",
+    lineHeight: 17,
+  },
+  statusUploaded: {
+    backgroundColor: "#ECFDF5",
+  },
   statusUploadedText: {
     color: "#059669",
   },
-  statusPendingText: {
-    color: "#94A3B8",
+  statusPending: {
+    backgroundColor: "#F8FAFC",
+  },
+  statusRequired: {
+    backgroundColor: "#FEF2F2",
+  },
+  statusRequiredText: {
+    color: "#DC2626",
+  },
+  statusRecommended: {
+    backgroundColor: "#FEF3C7",
+  },
+  statusRecommendedText: {
+    color: "#D97706",
+  },
+  statusConditional: {
+    backgroundColor: "#E0F2FE",
+  },
+  statusConditionalText: {
+    color: "#2563EB",
+  },
+  statusOptional: {
+    backgroundColor: "#F1F5F9",
+  },
+  statusOptionalText: {
+    color: "#64748B",
   },
   uploadedActionRow: {
     flexDirection: "row",
