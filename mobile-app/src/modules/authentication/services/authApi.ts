@@ -1,67 +1,72 @@
 import { apiClient } from "../../../core/api/apiClient";
 import type { DevUser, RegistrationData } from "../types/auth.types";
-
+ 
 export interface SendOtpResponse {
   success: boolean;
   message?: string;
 }
-
+ 
 export interface VerifyOtpResponse {
   success: boolean;
   isExistingUser?: boolean;
   message?: string;
   user?: DevUser;
 }
-
+ 
 export interface CheckUserResponse {
   success: boolean;
   exists: boolean;
   user?: DevUser;
 }
-
+ 
 export interface RegisterResponse {
   success: boolean;
   user: DevUser;
   token?: string;
   message?: string;
 }
-
+ 
 export interface PasscodeResponse {
   success: boolean;
   user?: DevUser;
   token?: string;
   message?: string;
 }
-
+ 
 export interface UpdatePasswordResponse {
   success: boolean;
   message?: string;
 }
-
+ 
 export const authApi = {
   sendOtp: async (mobileNumber: string): Promise<SendOtpResponse> => {
     const cleanMobile = mobileNumber.replace(/\D/g, "");
     try {
-      console.log(`🚀 [OTP] Sending POST ${apiClient.getBaseUrl()}/otp/generate for mobile: ${cleanMobile}`);
+      console.log(`🚀 [OTP] Sending POST http://192.168.88.20:8086/otp/generate for mobile: ${cleanMobile}`);
       const res = await apiClient.post<any>("/otp/generate", { mobileNumber: cleanMobile });
       console.log(`✅ [OTP] Backend generated OTP successfully! Response:`, res);
       return { success: true, message: typeof res === "string" ? res : "OTP generated successfully" };
     } catch (error: any) {
       console.log("ℹ️ [OTP] Error requesting OTP from backend:", error?.message);
       const errorMsg = error?.message?.includes("Network request failed")
-        ? `Network error: Unable to reach backend at ${apiClient.getBaseUrl()}. Check Wi-Fi connection.`
+        ? "Network error: Unable to reach backend at 192.168.88.20:8086. Check Wi-Fi connection."
         : error?.message || "Failed to generate OTP";
       return { success: false, message: errorMsg };
     }
   },
-
+ 
   verifyOtp: async (mobileNumber: string, otp: string): Promise<VerifyOtpResponse> => {
     const cleanMobile = mobileNumber.replace(/\D/g, "");
     try {
       console.log(`🚀 [OTP] Verifying with Backend POST /otp/verify for: ${cleanMobile}, code: ${otp}`);
       const res = await apiClient.post<any>("/otp/verify", { mobileNumber: cleanMobile, otpCode: otp });
       console.log("✅ [OTP] Backend verified OTP successfully:", res);
-      return { success: true, message: typeof res === "string" ? res : "OTP verified successfully" };
+      const isExisting = res && typeof res === "object" ? Boolean(res.isExistingUser) : false;
+      return {
+        success: true,
+        isExistingUser: isExisting,
+        message: typeof res === "string" ? res : res?.message || "OTP verified successfully",
+      };
     } catch (error: any) {
       console.log("ℹ️ [OTP] Incorrect OTP entered for:", cleanMobile);
       const backendMsg =
@@ -71,15 +76,18 @@ export const authApi = {
       return { success: false, message: backendMsg };
     }
   },
-
+ 
   checkUser: async (mobileNumber: string): Promise<CheckUserResponse> => {
+    const cleanMobile = mobileNumber.replace(/\D/g, "");
     try {
-      return await apiClient.post<CheckUserResponse>("/auth/check-user", { mobileNumber });
+      const res = await apiClient.get<any>(`/customer/exists/${cleanMobile}`);
+      const exists = Boolean(res?.exists);
+      return { success: true, exists };
     } catch {
       return { success: true, exists: false };
     }
   },
-
+ 
   register: async (data: RegistrationData & { mobileNumber: string; passcode?: string }): Promise<RegisterResponse> => {
     try {
       // Format DOB from DD-MM-YYYY to YYYY-MM-DD for Spring Boot LocalDate
@@ -88,7 +96,7 @@ export const authApi = {
         const [d, m, y] = formattedDob.split("-");
         formattedDob = `${y}-${m}-${d}`;
       }
-
+ 
       // Format CustomerType string to match Spring Boot Enum
       let rawType = (data.customerType || "INDIVIDUAL").trim();
       if (rawType.toLowerCase().includes("freelancer")) {
@@ -96,7 +104,7 @@ export const authApi = {
       } else {
         rawType = rawType.toUpperCase().replace(/[\s\/]+/g, "_");
       }
-
+ 
       // Map payload to match Spring Boot CustomerDto format exactly
       const payload = {
         name: data.name,
@@ -110,11 +118,11 @@ export const authApi = {
         password: data.passcode,
         pushToken: data.pushToken,
       };
-
+ 
       console.log("🚀 FETCHING POST /customer/register Payload:", payload);
       const response = await apiClient.post<any>("/customer/register", payload);
       console.log("✅ Backend Registration Response:", response);
-
+ 
       return {
         success: true,
         user: {
@@ -135,7 +143,7 @@ export const authApi = {
       };
     }
   },
-
+ 
   createPasscode: async (mobileNumber: string, passcode: string): Promise<PasscodeResponse> => {
     try {
       return await apiClient.post<PasscodeResponse>("/auth/create-passcode", { mobileNumber, passcode });
@@ -143,7 +151,7 @@ export const authApi = {
       return { success: true, message: "Passcode created successfully" };
     }
   },
-
+ 
   loginPasscode: async (mobileNumber: string, passcode: string): Promise<PasscodeResponse> => {
     try {
       const cleanMobile = mobileNumber.replace(/\D/g, "");
@@ -153,7 +161,7 @@ export const authApi = {
         password: passcode,
       });
       console.log("✅ Backend Login Response:", response);
-
+ 
       return {
         success: true,
         token: response.accessToken,
@@ -172,7 +180,7 @@ export const authApi = {
       };
     }
   },
-
+ 
   updatePassword: async (mobileNumber: string, password: string): Promise<UpdatePasswordResponse> => {
     const cleanMobile = mobileNumber.replace(/\D/g, "");
     try {
@@ -182,7 +190,7 @@ export const authApi = {
         password,
       });
       console.log("✅ [API] Password update response:", res);
-
+ 
       const msg = typeof res === "string" ? res : res?.message || "Password updated successfully";
       if (typeof msg === "string" && msg.toLowerCase().includes("not found")) {
         return { success: false, message: msg };
@@ -196,12 +204,12 @@ export const authApi = {
       };
     }
   },
-
+ 
   forgotPasscode: async (mobileNumber: string): Promise<SendOtpResponse> => {
     const cleanMobile = mobileNumber.replace(/\D/g, "");
     return authApi.sendOtp(cleanMobile);
   },
-
+ 
   resetPasscode: async (mobileNumber: string, newPasscode: string, _otp?: string): Promise<PasscodeResponse> => {
     const res = await authApi.updatePassword(mobileNumber, newPasscode);
     return {
@@ -210,5 +218,7 @@ export const authApi = {
     };
   },
 };
-
+ 
 export default authApi;
+ 
+ 

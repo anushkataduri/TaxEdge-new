@@ -3,9 +3,11 @@ import { create } from "zustand";
 import { mockApplications } from "../data/applications";
 import type {
   Application,
+  ApplicationDocument,
   ApplicationFormData,
   ChatMessage,
   ChatSender,
+  PaymentStatus,
   ServiceCategoryId,
 } from "../types/domain";
 
@@ -36,7 +38,9 @@ export interface GstFilingDraft {
   stepIndex: number;
   periodData: {
     periodType: string;
+    financialYear?: string;
     filingMonth: string;
+    filingPeriod?: string;
     gstin: string;
     filingType: string;
   };
@@ -73,8 +77,9 @@ export interface ApplicationState {
     serviceName: string,
     category: ServiceCategoryId,
     formData: ApplicationFormData,
-    requiredDocs: string[],
+    requiredDocs: (string | ApplicationDocument)[],
     paymentAmount: number,
+    initialPaymentStatus?: PaymentStatus,
   ) => string;
   uploadDocument: (appId: string, docName: string, fileUri: string) => void;
   addChatMessage: (appId: string, sender: ChatSender, text: string) => void;
@@ -101,6 +106,7 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
     formData,
     requiredDocs,
     paymentAmount,
+    initialPaymentStatus,
   ) => {
     const randomNum = Math.floor(10000 + Math.random() * 90000);
     const prefix = category.substring(0, 4).toUpperCase();
@@ -117,34 +123,51 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
         Math.floor(Math.random() * 4)
       ],
       paymentAmount,
-      paymentStatus: paymentAmount > 0 ? "Pending" : "Paid",
+      paymentStatus: initialPaymentStatus || (paymentAmount > 0 ? "Pending" : "Paid"),
       createdAt: new Date().toISOString().split("T")[0],
       formData,
-      documents: requiredDocs.map((doc) => ({ name: doc, status: "Pending" })),
-      timeline: [
-        {
-          title: "Application Submitted",
-          description: "Application filed online",
-          status: "completed",
-          date: "Today",
-        },
-        {
-          title: "Document Collection",
-          description: "Checking uploaded and pending files",
-          status: "current",
-          date: "Today",
-        },
-        {
-          title: "Verification",
-          description: "Verification by executive",
-          status: "pending",
-        },
-        {
-          title: "Completed",
-          description: "Filing/Approval confirmation",
-          status: "pending",
-        },
-      ],
+      documents: requiredDocs.map((doc) =>
+        typeof doc === "string"
+          ? { name: doc, status: "Pending" }
+          : { name: doc.name, status: doc.status || "Pending", fileUri: doc.fileUri }
+      ),
+      timeline: serviceId === "gst-filing"
+        ? [
+            { title: "Customer Request", description: "Filing request initiated", status: "completed", date: "Today" },
+            { title: "Document Upload", description: "Sales & purchase records submitted", status: "completed", date: "Today" },
+            { title: "Staff Verification", description: "CA reviewing invoices & reconciliation", status: "current", date: "Today" },
+            { title: "Data Preparation", description: "Accounting integration & ledger extraction", status: "pending" },
+            { title: "Return Preparation", description: "Tax computation & ITC calculation", status: "pending" },
+            { title: "Customer Review", description: "Return draft shared with customer", status: "pending" },
+            { title: "Customer Approval", description: "Sign-off received from business", status: "pending" },
+            { title: "GST Filing", description: "Submission to GST portal", status: "pending" },
+            { title: "Acknowledgement Receipt", description: "ARN generated & filed copy delivered", status: "pending" },
+            { title: "Completed", description: "Filing process closed", status: "pending" },
+          ]
+        : [
+            {
+              title: "Application Submitted",
+              description: "Application filed online",
+              status: "completed",
+              date: "Today",
+            },
+            {
+              title: "Document Collection",
+              description: "Checking uploaded and pending files",
+              status: "current",
+              date: "Today",
+            },
+            {
+              title: "Verification",
+              description: "Verification by executive",
+              status: "pending",
+            },
+            {
+              title: "Completed",
+              description: "Filing/Approval confirmation",
+              status: "pending",
+            },
+          ],
       chatHistory: [
         {
           id: "1",
