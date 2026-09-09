@@ -13,7 +13,7 @@ export interface RequestOptions {
  * Server Network Configuration
  * Change IP and Port here to point the mobile app to your backend.
  */
-export const SERVER_IP = "192.168.88.3";
+export const SERVER_IP = "192.168.88.20";
 export const SERVER_PORT = 8086;
 
 export function getDefaultBaseUrl(): string {
@@ -21,11 +21,12 @@ export function getDefaultBaseUrl(): string {
     return `http://localhost:${SERVER_PORT}`;
   }
 
-  // Explicitly configured IP for backend connection
+  // 1. Explicitly configured IP for backend connection (friend's backend server)
   if (SERVER_IP) {
     return `http://${SERVER_IP}:${SERVER_PORT}`;
   }
 
+  // 2. Auto-detect host IP from Expo bundler if SERVER_IP is empty
   try {
     const hostUri =
       Constants.expoConfig?.hostUri ||
@@ -40,7 +41,7 @@ export function getDefaultBaseUrl(): string {
     }
   } catch {}
 
-  return `http://192.168.88.3:${SERVER_PORT}`;
+  return `http://192.168.88.20:${SERVER_PORT}`;
 }
 
 export class ApiClient {
