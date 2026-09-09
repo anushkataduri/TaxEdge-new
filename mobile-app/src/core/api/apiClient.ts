@@ -13,19 +13,15 @@ export interface RequestOptions {
  * Server Network Configuration
  * Change IP and Port here to point the mobile app to your backend.
  */
-export const SERVER_IP = "192.168.88.3";
-export const SERVER_PORT = 8086;
+export const SERVER_IP = "192.168.88.20";
+export const SERVER_PORT = 8088;
 
 export function getDefaultBaseUrl(): string {
   if (Platform.OS === "web") {
     return `http://localhost:${SERVER_PORT}`;
   }
 
-  // Explicitly configured IP for backend connection
-  if (SERVER_IP) {
-    return `http://${SERVER_IP}:${SERVER_PORT}`;
-  }
-
+  // Dynamic host from Expo Go / Dev client if available
   try {
     const hostUri =
       Constants.expoConfig?.hostUri ||
@@ -40,7 +36,12 @@ export function getDefaultBaseUrl(): string {
     }
   } catch {}
 
-  return `http://192.168.88.3:${SERVER_PORT}`;
+  // Explicitly configured IP for backend connection
+  if (SERVER_IP) {
+    return `http://${SERVER_IP}:${SERVER_PORT}`;
+  }
+
+  return `http://192.168.88.20:${SERVER_PORT}`;
 }
 
 export class ApiClient {
@@ -143,8 +144,9 @@ export class ApiClient {
         } catch {
           errorData = { message: response.statusText };
         }
+        const message = errorData.message || errorData.error || response.statusText || "Request failed";
         throw new ApiError(
-          errorData.message || "Request failed",
+          message,
           response.status,
           errorData.code || "API_ERROR",
           errorData.errors

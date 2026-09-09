@@ -12,9 +12,16 @@ export interface RegistrationData {
   email: string;
   customerType?: string;
   dob?: string;
+  gender?: string;
+  fatherSpouseName?: string;
   pan?: string;
   aadhaar?: string;
   address?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  pincode?: string;
+  state?: string;
   avatarUri?: string | null;
   pushToken?: string;
 }
@@ -24,10 +31,17 @@ export interface DevUser {
   mobileNumber: string;
   name: string;
   email: string;
+  gender?: string;
+  fatherSpouseName?: string;
   pan?: string;
   aadhaar?: string;
   dob?: string;
   address?: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  pincode?: string;
+  state?: string;
   customerType?: string;
   avatarUri?: string | null;
   passcode?: string;

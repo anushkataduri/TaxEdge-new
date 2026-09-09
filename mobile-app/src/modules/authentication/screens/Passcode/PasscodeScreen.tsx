@@ -101,7 +101,6 @@ export function PasscodeScreen() {
               style={styles.logo}
               resizeMode="contain"
             />
-            <Text style={styles.title}>Welcome Back 👋</Text>
             <Text style={styles.sub}>
               Enter your 6-digit passcode for{"\n"}
               <Text style={styles.phoneHighlight}>{phone}</Text>

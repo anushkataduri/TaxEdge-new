@@ -91,10 +91,42 @@ export const authApi = {
 
       // Format CustomerType string to match Spring Boot Enum
       let rawType = (data.customerType || "INDIVIDUAL").trim();
-      if (rawType.toLowerCase().includes("freelancer")) {
-        rawType = "FREELANCER_CONSULTANT";
+      const typeLower = rawType.toLowerCase();
+      if (typeLower.includes("freelancer")) {
+        rawType = "FREELANCER";
+      } else if (typeLower.includes("private limited") || typeLower.includes("pvt")) {
+        rawType = "PRIVATE_LIMITED";
+      } else if (typeLower.includes("public limited")) {
+        rawType = "PUBLIC_LIMITED";
+      } else if (typeLower === "llp") {
+        rawType = "LLP";
+      } else if (typeLower.includes("partnership")) {
+        rawType = "PARTNERSHIP";
+      } else if (typeLower.includes("proprietorship")) {
+        rawType = "PROPRIETORSHIP";
+      } else if (typeLower.includes("huf")) {
+        rawType = "HUF";
+      } else if (typeLower.includes("aop") || typeLower.includes("boi")) {
+        rawType = "AOP_BOI";
+      } else if (typeLower.includes("ngo") || typeLower.includes("trust")) {
+        rawType = "NGO_TRUST";
+      } else if (typeLower.includes("individual")) {
+        rawType = "INDIVIDUAL";
       } else {
         rawType = rawType.toUpperCase().replace(/[\s\/]+/g, "_");
+      }
+
+      // Format full address from discrete fields if provided
+      let formattedAddress = data.address || "";
+      if (!formattedAddress && data.addressLine1) {
+        formattedAddress = [
+          data.addressLine1,
+          data.addressLine2,
+          data.city,
+          data.state ? `${data.state}${data.pincode ? " - " + data.pincode : ""}` : data.pincode,
+        ]
+          .filter(Boolean)
+          .join(", ");
       }
 
       // Map payload to match Spring Boot CustomerDto format exactly
@@ -106,7 +138,14 @@ export const authApi = {
         pan: data.pan,
         dob: formattedDob,
         customerType: rawType,
-        address: data.address,
+        gender: data.gender,
+        fatherSpouseName: data.fatherSpouseName,
+        addressLine1: data.addressLine1,
+        addressLine2: data.addressLine2,
+        city: data.city,
+        pincode: data.pincode,
+        state: data.state,
+        address: formattedAddress,
         password: data.passcode,
         pushToken: data.pushToken,
       };

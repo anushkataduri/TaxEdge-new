@@ -1,6 +1,7 @@
 package com.taxedge.customer.service;
 
 import java.time.LocalDateTime;
+
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -53,7 +54,14 @@ public class CustomerServiceImpl implements CustomerService {
                 .aadhaar(customerDto.getAadhaar())
                 .pan(customerDto.getPan())
                 .dob(customerDto.getDob())
+                .gender(customerDto.getGender())
+                .fatherSpouseName(customerDto.getFatherSpouseName())
                 .customerType(customerDto.getCustomerType())
+                .addressLine1(customerDto.getAddressLine1())
+                .addressLine2(customerDto.getAddressLine2())
+                .city(customerDto.getCity())
+                .pincode(customerDto.getPincode())
+                .state(customerDto.getState())
                 .address(customerDto.getAddress())
                 .password(passwordEncoder.encode(customerDto.getPassword()))
                 .pushToken(customerDto.getPushToken())
@@ -148,5 +156,11 @@ public class CustomerServiceImpl implements CustomerService {
     	return "Password updated successfully";
     }
 
-	
+    @Override
+    public boolean existsByMobileNumber(String mobileNumber) {
+        if (mobileNumber == null || mobileNumber.trim().isEmpty()) {
+            return false;
+        }
+        return customerRepository.findByMobileNumber(mobileNumber.trim()).isPresent();
+    }
 }

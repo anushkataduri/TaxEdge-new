@@ -16,3 +16,10 @@ export * from "./store/gstStore";
 export * from "./types/gst.types";
 export * from "./validation/gstSchema";
 export * from "./navigation/GSTNavigator";
+export { default as GstComplianceScreen } from "./screens/GstComplianceScreen";
+export * from "./screens/GstComplianceSuccessScreen";
+export * from "./components/FileUploadCard";
+export * from "./components/BottomSheetSelector";
+export * from "./components/ComplianceHeader";
+export * from "./components/FloatingLabelInput";
+

@@ -10,7 +10,7 @@ public interface CustomerRepository extends JpaRepository<Customer, String> {
 	
 	boolean existsByAadhaar(String aadhaar);
 
-    boolean existsByPan(String pan);
+    boolean existsByPan(String pan); 
 
     Optional<Customer> findByMobileNumber(String mobileNumber);
     
