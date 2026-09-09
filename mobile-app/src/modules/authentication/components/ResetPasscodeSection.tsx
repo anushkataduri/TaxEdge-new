@@ -1,7 +1,21 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native";
-import { useTheme } from "../../../hooks/use-theme";
-import { BrandColors, BorderRadius, Typography, Spacing } from "../../../shared/theme";
+import React, { useState, useRef, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Keyboard,
+  Platform,
+  useColorScheme,
+} from "react-native";
+import {
+  BrandColors,
+  BorderRadius,
+  Typography,
+  Spacing,
+  BorderWidth,
+} from "../../../shared/theme";
 import { PrimaryButton } from "../../../shared/components/Button/PrimaryButton";
 
 interface ResetPasscodeSectionProps {
@@ -24,90 +38,178 @@ export function ResetPasscodeSection({
   onChangePasscode,
   onChangeConfirmPasscode,
   onSubmit,
-  onBack,
-  title = "Create New Passcode",
-  subtitle = "Set a secure 6-digit numeric passcode to protect your account",
-  submitButtonTitle = "Save & Continue",
   loading,
   error,
 }: ResetPasscodeSectionProps) {
-  const colors = useTheme();
-  const [focusedField, setFocusedField] = useState<"passcode" | "confirm" | null>(null);
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const titleColor = isDark ? "#FFFFFF" : "#06152D";
 
-  const isFormValid =
-    passcode.length === 6 && confirmPasscode.length === 6 && passcode === confirmPasscode;
+  const newPasscodeRef = useRef<TextInput>(null);
+  const confirmPasscodeRef = useRef<TextInput>(null);
+  const [activeSection, setActiveSection] = useState<"new" | "confirm">("new");
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      newPasscodeRef.current?.focus();
+    }, 150);
+    return () => clearTimeout(t);
+  }, []);
+
+  const handleNewPasscodeChange = (text: string) => {
+    const clean = text.replace(/[^0-9]/g, "");
+    onChangePasscode(clean);
+    if (clean.length === 6) {
+      setTimeout(() => {
+        confirmPasscodeRef.current?.focus();
+        setActiveSection("confirm");
+      }, 50);
+    }
+  };
+
+  const handleConfirmPasscodeChange = (text: string) => {
+    const clean = text.replace(/[^0-9]/g, "");
+    onChangeConfirmPasscode(clean);
+    if (clean.length === 6 && passcode === clean) {
+      Keyboard.dismiss();
+    }
+  };
+
+  const isPasscodeComplete = passcode.length === 6;
+  const isConfirmComplete = confirmPasscode.length === 6;
+  const doPasscodesMatch = passcode === confirmPasscode;
+
+  const isFormValid = isPasscodeComplete && isConfirmComplete && doPasscodesMatch;
+  const showMismatchError = isConfirmComplete && !doPasscodesMatch;
+
+  const renderBoxes = (
+    value: string,
+    isActive: boolean,
+    hasError: boolean,
+    onPress: () => void
+  ) => {
+    return (
+      <TouchableOpacity
+        activeOpacity={1}
+        onPress={onPress}
+        style={styles.otpTouchable}
+      >
+        <View style={styles.otpGrid}>
+          {Array.from({ length: 6 }).map((_, i) => {
+            const isFilled = i < value.length;
+            const isCurrent = isActive && i === value.length;
+
+            const borderColor = hasError
+              ? "#DC2626"
+              : isCurrent
+              ? BrandColors.PRIMARY_ORANGE
+              : isFilled
+              ? (isDark ? "#38BDF8" : BrandColors.PRIMARY_BLUE_DARK)
+              : (isDark ? "#334155" : "#E2E8F0");
+
+            const backgroundColor = isDark
+              ? (isCurrent || isFilled ? "#1E293B" : "#0F172A")
+              : BrandColors.WHITE;
+
+            return (
+              <View
+                key={i}
+                style={[
+                  styles.otpBox,
+                  {
+                    borderColor,
+                    borderWidth:
+                      isCurrent || isFilled ? BorderWidth.medium : BorderWidth.thin,
+                    backgroundColor,
+                  },
+                ]}
+              >
+                {isFilled ? (
+                  <View
+                    style={[
+                      styles.secureDot,
+                      {
+                        backgroundColor: isDark
+                          ? BrandColors.WHITE
+                          : BrandColors.PRIMARY_BLUE_DARK,
+                      },
+                    ]}
+                  />
+                ) : null}
+              </View>
+            );
+          })}
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
     <View style={styles.container}>
-      <View style={styles.headerRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
-          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
-        </View>
-        {onBack ? (
-          <TouchableOpacity onPress={onBack} activeOpacity={0.7} style={styles.backBtn}>
-            <Text style={styles.backBtnText}>Back</Text>
-          </TouchableOpacity>
-        ) : null}
+      {/* 1. New Passcode Section */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: titleColor }]}>
+          New Passcode
+        </Text>
+        {renderBoxes(passcode, activeSection === "new", false, () => {
+          newPasscodeRef.current?.focus();
+          setActiveSection("new");
+        })}
       </View>
 
-      {/* Passcode Input */}
-      <View style={styles.fieldGroup}>
-        <Text style={[styles.label, { color: colors.text }]}>6-Digit Passcode</Text>
-        <TextInput
-          value={passcode}
-          onChangeText={(t) => onChangePasscode(t.replace(/\D/g, ""))}
-          onFocus={() => setFocusedField("passcode")}
-          onBlur={() => setFocusedField(null)}
-          placeholder="Enter 6 digits"
-          placeholderTextColor={colors.textSecondary}
-          keyboardType="number-pad"
-          maxLength={6}
-          secureTextEntry
-          style={[
-            styles.input,
-            {
-              color: colors.text,
-              backgroundColor: colors.backgroundElement,
-              borderColor:
-                focusedField === "passcode" ? BrandColors.PRIMARY_BLUE : colors.border,
-            },
-          ]}
-        />
+      {/* 2. Confirm Passcode Section */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: titleColor }]}>
+          Confirm Passcode
+        </Text>
+        {renderBoxes(
+          confirmPasscode,
+          activeSection === "confirm",
+          showMismatchError,
+          () => {
+            confirmPasscodeRef.current?.focus();
+            setActiveSection("confirm");
+          }
+        )}
       </View>
 
-      {/* Confirm Passcode Input */}
-      <View style={styles.fieldGroup}>
-        <Text style={[styles.label, { color: colors.text }]}>Confirm Passcode</Text>
-        <TextInput
-          value={confirmPasscode}
-          onChangeText={(t) => onChangeConfirmPasscode(t.replace(/\D/g, ""))}
-          onFocus={() => setFocusedField("confirm")}
-          onBlur={() => setFocusedField(null)}
-          placeholder="Re-enter 6 digits"
-          placeholderTextColor={colors.textSecondary}
-          keyboardType="number-pad"
-          maxLength={6}
-          secureTextEntry
-          style={[
-            styles.input,
-            {
-              color: colors.text,
-              backgroundColor: colors.backgroundElement,
-              borderColor:
-                focusedField === "confirm" ? BrandColors.PRIMARY_BLUE : colors.border,
-            },
-          ]}
-        />
-      </View>
+      {/* Hidden Inputs for keyboard management */}
+      <TextInput
+        ref={newPasscodeRef}
+        value={passcode}
+        onChangeText={handleNewPasscodeChange}
+        onFocus={() => setActiveSection("new")}
+        keyboardType="number-pad"
+        maxLength={6}
+        secureTextEntry
+        style={styles.hiddenInput}
+      />
 
-      {error ? <Text style={[styles.error, { color: colors.error }]}>{error}</Text> : null}
+      <TextInput
+        ref={confirmPasscodeRef}
+        value={confirmPasscode}
+        onChangeText={handleConfirmPasscodeChange}
+        onFocus={() => setActiveSection("confirm")}
+        keyboardType="number-pad"
+        maxLength={6}
+        secureTextEntry
+        style={styles.hiddenInput}
+      />
 
+      {/* Inline Validation Error Message */}
+      {showMismatchError ? (
+        <Text style={styles.inlineErrorText}>Passcodes do not match.</Text>
+      ) : null}
+      {error && !showMismatchError ? (
+        <Text style={styles.inlineErrorText}>{error}</Text>
+      ) : null}
+
+      {/* Reset Passcode Button */}
       <PrimaryButton
-        title={submitButtonTitle}
+        title="Reset Passcode"
         onPress={onSubmit}
         loading={loading}
-        disabled={loading || !isFormValid}
+        disabled={!isFormValid || loading}
         colorType="orange"
         style={styles.submitBtn}
       />
@@ -119,54 +221,79 @@ const styles = StyleSheet.create({
   container: {
     width: "100%",
   },
-  headerRow: {
+  section: {
+    marginBottom: Spacing.xl,
+    width: "100%",
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: Spacing.sm + 4,
+    textAlign: "left",
+  },
+  otpTouchable: {
+    width: "100%",
+  },
+  otpGrid: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: Spacing.lg,
+    alignItems: "center",
+    width: "100%",
   },
-  title: {
-    fontSize: Typography.fontSize.lg,
-    fontWeight: Typography.fontWeight.bold,
+  otpBox: {
+    width: 46,
+    height: 56,
+    borderRadius: BorderRadius.base - 2,
+    justifyContent: "center",
+    alignItems: "center",
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+      default: {},
+    }),
   },
-  subtitle: {
-    fontSize: Typography.fontSize.xs + 1,
-    marginTop: 2,
-    lineHeight: 18,
+  secureDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
   },
-  backBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
+  hiddenInput: {
+    position: "absolute",
+    opacity: 0,
+    width: 1,
+    height: 1,
   },
-  backBtnText: {
+  inlineErrorText: {
     fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.bold,
-    color: BrandColors.PRIMARY_BLUE,
-  },
-  fieldGroup: {
+    fontWeight: Typography.fontWeight.medium,
+    color: "#DC2626",
+    textAlign: "center",
     marginBottom: Spacing.md,
-  },
-  label: {
-    fontSize: Typography.fontSize.sm,
-    fontWeight: Typography.fontWeight.semiBold,
-    marginBottom: 6,
-  },
-  input: {
-    height: 50,
-    borderWidth: 1.5,
-    borderRadius: BorderRadius.sm + 2,
-    paddingHorizontal: Spacing.base - 2,
-    fontSize: Typography.fontSize.lg,
-    letterSpacing: 6,
-  },
-  error: {
-    fontSize: Typography.fontSize.sm,
-    marginBottom: 10,
-    fontWeight: Typography.fontWeight.semiBold,
+    marginTop: -Spacing.xs,
   },
   submitBtn: {
-    marginTop: 10,
-    height: 50,
+    marginTop: Spacing.sm,
+    height: 54,
+    borderRadius: BorderRadius.base - 2,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+      },
+      android: {
+        elevation: 4,
+      },
+      default: {},
+    }),
   },
 });
 

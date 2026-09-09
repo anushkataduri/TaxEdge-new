@@ -3,12 +3,16 @@ spring:
     url: jdbc:mysql://localhost:3306/taxedge
     username: root
     password: shashi/4274
+
   jpa:
     hibernate:
       ddl-auto: update
     show-sql: true
+
+
 logging:
   level:
     com.taxedge: DEBUG
  
  
+

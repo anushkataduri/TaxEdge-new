@@ -133,9 +133,16 @@ export interface CustomerProfile {
   name: string;
   email: string;
   dob: string;
+  gender?: string;
+  fatherSpouseName?: string;
   pan: string;
   aadhaar: string;
   address: string;
+  addressLine1?: string;
+  addressLine2?: string;
+  city?: string;
+  pincode?: string;
+  state?: string;
   customerType: string;
 }
 

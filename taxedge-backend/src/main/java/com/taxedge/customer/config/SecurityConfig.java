@@ -30,9 +30,8 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
-                    "/customer/register",
-                    "/customer/login",
-                    "/customer/update_password",
+                    "/customer",
+                    "/customer/**",
                     "/otp/**",
                     "/auth/**",
                     "/v3/api-docs",
@@ -41,7 +40,9 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/swagger-resources",
                     "/swagger-resources/**",
-                    "/webjars/**"
+                    "/webjars/**",
+                    "/actuator/health",
+                    "/actuator/prometheus"
                 ).permitAll()
                 .anyRequest().authenticated()
             )

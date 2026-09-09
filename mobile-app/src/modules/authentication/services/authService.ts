@@ -29,7 +29,39 @@ export const authService = {
         message: apiRes.message || "Invalid OTP code",
       };
     }
+
+    // Check whether user exists in the backend database
+    let isExisting = false;
+    try {
+      const checkRes = await authApi.checkUser(clean);
+      if (checkRes && checkRes.exists) {
+        isExisting = true;
+      }
+    } catch (e) {
+      console.warn("Could not check user existence on backend:", e);
+    }
+
+    // Fallback: check local storage if offline or already cached
     const existing = authStorage.getUserByMobile(clean);
+
+    if (!isExisting && existing && existing.passcode) {
+      isExisting = true;
+    }
+
+    // If user exists in backend but not in local storage yet, create cached user
+    if (isExisting && !existing) {
+      const placeholderUser: DevUser = {
+        customerId: `CUST-2026-${clean.slice(-5)}`,
+        mobileNumber: clean,
+        name: "Valued Client",
+        email: `${clean}@taxedge.in`,
+        customerType: "Individual",
+        registrationCompleted: true,
+      };
+      authStorage.saveUser(placeholderUser);
+    }
+
+
     let isExisting = false;
     if (typeof apiRes.isExistingUser === "boolean") {
       isExisting = apiRes.isExistingUser;
@@ -40,15 +72,24 @@ export const authService = {
       isExisting = Boolean(checkRes?.exists);
     }
  
+
     return {
       success: true,
       isExistingUser: isExisting,
-      user: existing || undefined,
+      user: existing || authStorage.getUserByMobile(clean) || undefined,
     };
   },
  
   async checkUser(mobileNumber: string): Promise<{ exists: boolean; user?: DevUser }> {
     const clean = mobileNumber.replace(/\D/g, "");
+    try {
+      const checkRes = await authApi.checkUser(clean);
+      if (checkRes && checkRes.exists) {
+        return { exists: true, user: authStorage.getUserByMobile(clean) || undefined };
+      }
+    } catch (e) {
+      console.warn("Error calling backend checkUser:", e);
+    }
     const existing = authStorage.getUserByMobile(clean);
     if (existing && existing.passcode) {
       return { exists: true, user: existing };
@@ -83,9 +124,16 @@ export const authService = {
       email: params.email?.trim() || `${mobile}@taxedge.in`,
       customerType: params.customerType || "Individual",
       dob: params.dob?.trim() || "",
+      gender: params.gender?.trim() || "",
+      fatherSpouseName: params.fatherSpouseName?.trim() || "",
       pan: params.pan?.trim().toUpperCase() || "",
       aadhaar: params.aadhaar?.trim() || "",
       address: params.address?.trim() || "",
+      addressLine1: params.addressLine1?.trim() || "",
+      addressLine2: params.addressLine2?.trim() || "",
+      city: params.city?.trim() || "",
+      pincode: params.pincode?.trim() || "",
+      state: params.state?.trim() || "",
       avatarUri: params.avatarUri || null,
       pushToken,
       registrationCompleted: Boolean(passcode),
@@ -148,8 +196,13 @@ export const authService = {
  
     try {
       await authApi.createPasscode(clean, pass);
+
+    } catch { }
+
+
     } catch {}
  
+
     authStorage.saveSession({
       isLoggedIn: true,
       activeMobile: clean,

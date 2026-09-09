@@ -21,6 +21,7 @@ export const Routes = {
     GST_REGISTRATION: "/service/gst-registration",
     GST_FILING: "/service/gst-filing",
     GST_COMPLIANCE: "/service/gst-compliance",
+    GST_COMPLIANCE_SUCCESS: "/service/gst-compliance-success",
     GST_AMENDMENT: "/service/gst-amendment",
     GST_CANCELLATION: "/service/gst-cancellation",
     GST_CERTIFICATE: "/service/gst-certificate",
