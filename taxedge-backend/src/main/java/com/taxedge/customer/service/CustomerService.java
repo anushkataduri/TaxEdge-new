@@ -10,5 +10,6 @@ public interface CustomerService {
     CustomerJwt registerCustomer(CustomerDto customerDto);
     CustomerJwt loginCustomer(LoginRequest loginRequest);
     String updatePassword(UpdatePasswordDto updatePasswordDto);
+    boolean existsByMobileNumber(String mobileNumber);
 }
 

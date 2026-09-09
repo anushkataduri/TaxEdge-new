@@ -17,6 +17,7 @@ export default function RootLayout() {
           <Stack.Screen name="service/gst-registration" />
           <Stack.Screen name="service/gst-filing" />
           <Stack.Screen name="service/gst-compliance" />
+          <Stack.Screen name="service/gst-compliance-success" />
           <Stack.Screen name="service/gst-amendment" />
           <Stack.Screen name="service/gst-cancellation" />
           <Stack.Screen name="service/gst-certificate" />

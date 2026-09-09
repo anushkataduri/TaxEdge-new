@@ -13,12 +13,29 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+	@ExceptionHandler(DuplicateResourceException.class)
+	public ResponseEntity<Map<String, Object>> handleDuplicate(DuplicateResourceException ex) {
+	    Map<String, Object> body = new LinkedHashMap<>();
+	    body.put("timestamp", LocalDateTime.now());
+	    body.put("status", HttpStatus.CONFLICT.value());
+	    body.put("error", ex.getMessage());
+	    body.put("field", ex.getField());
+	    return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
+	}
+
 	@ExceptionHandler(DataIntegrityViolationException.class)
 	public ResponseEntity<Map<String, Object>> handleConstraint(DataIntegrityViolationException ex) {
 	    Map<String, Object> body = new LinkedHashMap<>();
 	    body.put("timestamp", LocalDateTime.now());
 	    body.put("status", HttpStatus.CONFLICT.value());
-	    body.put("error", "This record already exists");
+	    String rootMsg = ex.getRootCause() != null ? ex.getRootCause().getMessage() : ex.getMessage();
+	    if (rootMsg != null && rootMsg.contains("check constraint")) {
+	        body.put("error", "Constraint violation: " + rootMsg);
+	    } else if (rootMsg != null && (rootMsg.contains("unique constraint") || rootMsg.contains("duplicate key"))) {
+	        body.put("error", "A record with this information already exists.");
+	    } else {
+	        body.put("error", "Data integrity violation: " + (rootMsg != null ? rootMsg : "Invalid data"));
+	    }
 	    return ResponseEntity.status(HttpStatus.CONFLICT).body(body);
 	}
 	
@@ -30,5 +47,4 @@ public class GlobalExceptionHandler {
 	    body.put("error", ex.getMessage());
 	    return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(body);
 	}
-    }
-
+}

@@ -55,6 +55,9 @@
           "color": "#0066CC"
         }
       ],
+
+      "@react-native-community/datetimepicker"
+
       [
         "expo-build-properties",
         {
@@ -63,6 +66,7 @@
           }
         }
       ]
+
     ],
     "experiments": {
       "typedRoutes": true,
