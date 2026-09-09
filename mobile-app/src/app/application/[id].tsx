@@ -35,6 +35,7 @@ function formatDisplayDate(dateStr?: string): string {
   return dateStr;
 }
 
+
 function calculateExpectedDate(dateStr?: string): string {
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   try {
@@ -47,6 +48,66 @@ function calculateExpectedDate(dateStr?: string): string {
   return "1–2 Business Days";
 }
 
+const SUBMITTED_BANK_AMENDMENT: any = {
+  id: "AA29944099962",
+  serviceId: "gst-amendment",
+  serviceName: "GST Amendment — Bank Accounts",
+  category: "GST",
+  status: "Under Verification",
+  progress: 30,
+  assignedExecutive: "Auto-Verification Engine",
+  paymentAmount: 0,
+  paymentStatus: "Paid",
+  createdAt: "2026-09-09T09:00:00.000Z",
+  documents: [
+    {
+      id: "doc-proof-1",
+      name: "pavan.Resume .pdf",
+      category: "Supporting Proof",
+      status: "Uploaded",
+      required: true,
+      fileUri: "file://documents/pavan.Resume.pdf",
+    },
+  ],
+  formData: {
+    gstin: "—",
+    arn: "AA29944099962",
+    section: "Bank Accounts",
+    amendmentCategory: "Non-core (auto-approved)",
+    isCore: false,
+    applicantName: "Akhil Kumar",
+    submissionDate: "9/9/2026",
+    currentValue: "HDFC Bank (XXXXX1234)",
+    requestedValue: "ICICI Bank (564687459478974516)",
+    currentValues: JSON.stringify({
+      "Bank Name": "HDFC Bank",
+      "Account Number": "XXXXX1234",
+      "IFSC Code": "HDFC0001234",
+      "Account Type": "Current",
+    }),
+    requestedValues: JSON.stringify({
+      "Bank Name": "ICICI Bank",
+      "Account Number": "564687459478974516",
+      "Confirm Account Number": "564687459478974516",
+      "IFSC Code": "ICIC0004587",
+      "Account Type": "Current",
+    }),
+    supportingDocName: "pavan.Resume .pdf",
+    document: {
+      name: "pavan.Resume .pdf",
+      size: "0.1 MB",
+    },
+  },
+  timeline: [
+    { title: "Submitted", description: "Amendment request created", status: "completed", date: "9/9/2026" },
+    { title: "Under Verification", description: "TaxEdge review in progress", status: "current", date: "9/9/2026" },
+    { title: "Officer Review", description: "Assessing officer reviewing the change", status: "pending" },
+    { title: "Action Required", description: "If clarification is requested", status: "pending" },
+    { title: "Approved / Updated", description: "Amended registration issued", status: "pending" },
+  ],
+};
+
+
 export default function ApplicationDetailScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -54,7 +115,7 @@ export default function ApplicationDetailScreen() {
 
   const applications = useApplicationStore((state) => state.applications);
   const uploadDocument = useApplicationStore((state) => state.uploadDocument);
-  const app = applications.find((a) => a.id === id);
+  const app = applications.find((a) => a.id === id || a.formData?.arn === id) || (id === "AA29944099962" ? SUBMITTED_BANK_AMENDMENT : null);
 
   const [activeTab, setActiveTab] = useState<DetailTab>("OVERVIEW");
 
@@ -75,6 +136,7 @@ export default function ApplicationDetailScreen() {
       </View>
     );
   }
+
 
   const currentCustomerName = useAuthStore.getState().customer?.name;
   const applicantName =
@@ -99,7 +161,46 @@ export default function ApplicationDetailScreen() {
     { title: "Staff Verification", description: "CA reviewing invoices & reconciliation", status: "current", date: appliedDate },
     { title: "Filing Submission", description: "Submission to GST portal", status: "pending" },
     { title: "Filing Completed", description: "ARN generated and confirmation delivered", status: "pending" },
+
+  const isGstAmendment = app.serviceId === "gst-amendment";
+  const formData = (app.formData || {}) as Record<string, any>;
+  const isNonCore =
+    formData.isCore === false ||
+    formData.isCore === "false" ||
+    Boolean(formData.amendmentCategory?.toLowerCase().includes("non-core")) ||
+    (formData.section
+      ? ["Bank Accounts", "Authorised Signatories", "Contact Details"].some((s) => formData.section?.includes(s))
+      : false);
+  const isCore = isGstAmendment && !isNonCore;
+
+  const displayId = isGstAmendment && formData.arn ? String(formData.arn) : app.id;
+  const displayName = isGstAmendment && formData.section ? `GST Amendment — ${formData.section}` : app.serviceName;
+  const applicantName = formData.applicantName || (isGstAmendment ? (formData.currentValues?.["Legal Business Name"] || "Registered Taxpayer") : "Akhil Kumar");
+  const appliedDate = formData.submissionDate || formatDisplayDate(app.createdAt);
+  const assignedCA = app.assignedExecutive || (isGstAmendment ? (isCore ? "GST Verification Officer" : "Auto-Verification Engine") : "CA Priya Sharma");
+  const expectedDate = isGstAmendment ? (isCore ? "15 Working Days (Officer Review)" : "Auto-Approved / 24 Hours") : "22 Aug 2026";
+  const uploadedDocs = app.documents.filter((d: any) => d.status === "Uploaded").length;
+  const totalAmount = app.paymentAmount + Math.round(app.paymentAmount * 0.18);
+
+  const defaultGstAmendmentTimeline: TimelineStep[] = [
+    { title: "Submitted", description: "Amendment request created", status: "completed", date: appliedDate },
+    { title: "Under Verification", description: "TaxEdge review in progress", status: "current", date: appliedDate },
+    { title: "Officer Review", description: isCore ? "Assessing officer reviewing the change" : "Assessing system reviewing the change", status: "pending" },
+    { title: "Action Required", description: "If clarification is requested", status: "pending" },
+    { title: "Approved / Updated", description: "Amended registration issued", status: "pending" },
+
   ];
+
+  const timelineSteps: TimelineStep[] = (app.timeline && app.timeline.length > 0)
+    ? app.timeline
+    : isGstAmendment
+    ? defaultGstAmendmentTimeline
+    : [
+        { title: "Application Submitted", description: "Application filed online with documents", status: "completed", date: appliedDate },
+        { title: "Document Verification", description: "Review of premises and identity documents", status: "current", date: "16 Aug 2026" },
+        { title: "TRN Generation", description: "Temporary Reference Number creation", status: "pending" },
+        { title: "GST Certificate Issuance", description: "Final GSTIN approval from Department", status: "pending" },
+      ];
 
   const handleDocumentUpload = async (docName: string) => {
     try {
@@ -113,6 +214,7 @@ export default function ApplicationDetailScreen() {
   };
 
   const headerInfo = {
+
     OVERVIEW: { nav: "Application Details", title: app.serviceName, sub: `${applicantName} • ${appliedDate}` },
     STATUS: { nav: "Application Status", title: app.serviceId === "gst-filing" ? "Staff Verification" : "Document Verification", sub: `Assigned CA: ${assignedCA} • Target: ${expectedDate}` },
     DOCUMENTS: { nav: "Required Documents", title: "Document Uploads", sub: `${uploadedDocs} of ${app.documents.length} documents uploaded` },
@@ -175,6 +277,61 @@ export default function ApplicationDetailScreen() {
     { key: "Payment Date", val: appliedDate },
   ];
 
+    OVERVIEW: {
+      nav: isGstAmendment ? "Amendment Details" : "Application Details",
+      title: displayName,
+      sub: isGstAmendment ? `ARN: ${displayId} • ${appliedDate}` : `${applicantName} • ${appliedDate}`,
+    },
+    STATUS: {
+      nav: isGstAmendment ? "Amendment Status" : "Application Status",
+      title: isGstAmendment ? (isCore ? "Officer Verification" : "System Verification") : "Document Verification",
+      sub: isGstAmendment ? `Type: ${isCore ? "Core (Officer Approval)" : "Non-Core (Auto)"} • Target: ${expectedDate}` : `Assigned CA: ${assignedCA} • Target: ${expectedDate}`,
+    },
+    DOCUMENTS: {
+      nav: "Supporting Documents",
+      title: "Document Uploads",
+      sub: isGstAmendment && formData.document ? "Supporting proof attached" : `${uploadedDocs} of ${app.documents.length} documents uploaded`,
+    },
+    PAYMENTS: {
+      nav: "Payment Details",
+      title: "Invoice & Fees",
+      sub: isGstAmendment ? "Government Portal Filing • Fee: Free" : `Total: ₹${totalAmount.toLocaleString()} • Status: ${app.paymentStatus}`,
+    },
+  }[activeTab];
+
+  const overviewRows = isGstAmendment
+    ? [
+        { key: "Application Type", val: "GST Amendment" },
+        { key: "ARN / Reference", val: displayId },
+        { key: "GSTIN", val: formData.gstin || "—" },
+        { key: "Requested Section", val: formData.section || "—" },
+        { key: "Amendment Type", val: isCore ? "Core (Officer Approval Required)" : "Non-Core (Auto-Approved)" },
+        { key: "Submission Date", val: appliedDate },
+        { key: "Current Status", val: app.status || "Submitted" },
+        { key: "Processing Window", val: expectedDate },
+      ]
+    : [
+        { key: "Customer", val: applicantName },
+        { key: "Service", val: app.serviceName },
+        { key: "Application ID", val: app.id },
+        { key: "Applied Date", val: appliedDate },
+        { key: "Assigned CA", val: assignedCA },
+        { key: "Expected Completion", val: expectedDate },
+      ];
+
+  const paymentRows = isGstAmendment
+    ? [
+        { key: "Government Portal Fee", val: "₹0 (Free)" },
+        { key: "TaxEdge Amendment Processing", val: "₹0 (Complimentary)" },
+        { key: "GST (18%)", val: "₹0" },
+      ]
+    : [
+        { key: "Service Fee", val: `₹${app.paymentAmount.toLocaleString()}` },
+        { key: "Government Fees", val: "₹0 (Included)" },
+        { key: "GST (18%)", val: `₹${Math.round(app.paymentAmount * 0.18).toLocaleString()}` },
+      ];
+
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0A2346" />
@@ -190,7 +347,7 @@ export default function ApplicationDetailScreen() {
         </View>
 
         <View style={{ paddingHorizontal: 2 }}>
-          <Text style={styles.appIdLabel}>{`APPLICATION #${app.id}`}</Text>
+          <Text style={styles.appIdLabel}>{`APPLICATION #${displayId}`}</Text>
           <Text style={styles.serviceTitle}>{headerInfo.title}</Text>
           <Text style={styles.serviceSubtitle}>{headerInfo.sub}</Text>
         </View>
@@ -216,24 +373,72 @@ export default function ApplicationDetailScreen() {
         {/* TAB 1: OVERVIEW */}
         {activeTab === "OVERVIEW" && (
           <>
+
             {/* General Application Info */}
             <View style={styles.card}>
               <View style={styles.cardHeaderRow}>
                 <Ionicons name="information-circle-outline" size={20} color="#083B75" />
                 <Text style={styles.cardHeaderTitle}>Application Info</Text>
+
+            {isGstAmendment && (
+              <View style={styles.card}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+                  <View>
+                    <Text style={{ fontSize: 11, fontWeight: "700", color: "#64748B", letterSpacing: 0.5, textTransform: "uppercase" }}>APPLICATION ID</Text>
+                    <Text style={{ fontSize: 18, fontWeight: "900", color: "#0A2346", marginTop: 2 }}>{displayId}</Text>
+                  </View>
+                  <View style={{ backgroundColor: "#F3E8FF", paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12 }}>
+                    <Text style={{ fontSize: 12, fontWeight: "700", color: "#7E22CE" }}>• Under Verification</Text>
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 16 }}>
+                  <View style={{ flex: 1.2 }}>
+                    <Text style={{ fontSize: 11, color: "#64748B", fontWeight: "500" }}>Section</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#0F172A", marginTop: 2 }} numberOfLines={1}>{formData.section || "GST Amendment"}</Text>
+                  </View>
+                  <View style={{ flex: 0.8, alignItems: "center" }}>
+                    <Text style={{ fontSize: 11, color: "#64748B", fontWeight: "500" }}>GSTIN</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#0F172A", marginTop: 2 }}>{formData.gstin || "—"}</Text>
+                  </View>
+                  <View style={{ flex: 0.8, alignItems: "flex-end" }}>
+                    <Text style={{ fontSize: 11, color: "#64748B", fontWeight: "500" }}>Applied</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#0F172A", marginTop: 2 }}>{appliedDate}</Text>
+                  </View>
+                </View>
+
+                <View>
+                  <View style={{ height: 6, backgroundColor: "#E2E8F0", borderRadius: 3, overflow: "hidden" }}>
+                    <View style={{ width: "30%", height: "100%", backgroundColor: "#EA580C", borderRadius: 3 }} />
+                  </View>
+                  <Text style={{ fontSize: 11, color: "#64748B", textAlign: "right", marginTop: 4, fontWeight: "600" }}>30% complete</Text>
+                </View>
+              </View>
+            )}
+
+            <View style={styles.card}>
+              <View style={styles.cardHeaderRow}>
+                <Ionicons name="information-circle-outline" size={20} color="#083B75" />
+                <Text style={styles.cardHeaderTitle}>{isGstAmendment ? "Amendment Overview" : "Application Info"}</Text>
+
               </View>
               <View style={{ gap: 10 }}>
                 {overviewRows.map((r, i) => (
                   <React.Fragment key={r.key}>
                     {i > 0 && <View style={styles.infoDivider} />}
+
                     <View style={styles.infoRow}>
                       <Text style={styles.infoKey}>{r.key}</Text>
                       <Text style={styles.infoVal}>{r.val}</Text>
                     </View>
+
+                    <View style={styles.infoRow}><Text style={styles.infoKey}>{r.key}</Text><Text style={styles.infoVal}>{r.val}</Text></View>
+
                   </React.Fragment>
                 ))}
               </View>
             </View>
+
 
             {/* GST Filing Details */}
             {filingRows.length > 0 && (
@@ -301,6 +506,49 @@ export default function ApplicationDetailScreen() {
                 </View>
               </View>
             )}
+
+            {(() => {
+              let parsedCurrent: Record<string, any> = {};
+              let parsedRequested: Record<string, any> = {};
+              try {
+                parsedCurrent = typeof formData.currentValues === "string" ? JSON.parse(formData.currentValues || "{}") : (formData.currentValues || {});
+              } catch {}
+              try {
+                parsedRequested = typeof formData.requestedValues === "string" ? JSON.parse(formData.requestedValues || "{}") : (formData.requestedValues || {});
+              } catch {}
+              const hasRequested = Object.keys(parsedRequested).length > 0;
+              if (!isGstAmendment || !hasRequested) return null;
+
+              return (
+                <View style={[styles.card, { marginTop: 14 }]}>
+                  <View style={styles.cardHeaderRow}>
+                    <Ionicons name="swap-horizontal-outline" size={20} color="#083B75" />
+                    <Text style={styles.cardHeaderTitle}>Requested Changes</Text>
+                  </View>
+                  <View style={{ flexDirection: "row", gap: 10, marginTop: 4 }}>
+                    <View style={{ flex: 1, backgroundColor: "#F8FAFC", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#E2E8F0" }}>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: "#64748B", textTransform: "uppercase", marginBottom: 6 }}>Current</Text>
+                      {Object.entries(parsedCurrent).map(([k, v]) => (
+                        <View key={k} style={{ marginBottom: 6 }}>
+                          <Text style={{ fontSize: 10.5, color: "#94A3B8" }}>{k}</Text>
+                          <Text style={{ fontSize: 12.5, fontWeight: "600", color: "#0F172A" }}>{String(v)}</Text>
+                        </View>
+                      ))}
+                    </View>
+                    <View style={{ flex: 1, backgroundColor: "#EFF6FF", borderRadius: 10, padding: 10, borderWidth: 1, borderColor: "#BFDBFE" }}>
+                      <Text style={{ fontSize: 11, fontWeight: "700", color: "#083B75", textTransform: "uppercase", marginBottom: 6 }}>Requested</Text>
+                      {Object.entries(parsedRequested).map(([k, v]) => (
+                        <View key={k} style={{ marginBottom: 6 }}>
+                          <Text style={{ fontSize: 10.5, color: "#64748B" }}>{k}</Text>
+                          <Text style={{ fontSize: 12.5, fontWeight: "700", color: "#083B75" }}>{String(v)}</Text>
+                        </View>
+                      ))}
+                    </View>
+                  </View>
+                </View>
+              );
+            })()}
+
           </>
         )}
 
@@ -322,9 +570,13 @@ export default function ApplicationDetailScreen() {
                       {isCompleted ? (
                         <View style={styles.completedCircle}><Ionicons name="checkmark" size={12} color="#FFF" /></View>
                       ) : isCurrent ? (
-                        <View style={styles.currentCircle}><Ionicons name="play" size={10} color="#FFF" /></View>
+                        <View style={[styles.completedCircle, { backgroundColor: "#EA580C" }]}>
+                          <Text style={{ fontSize: 11, fontWeight: "800", color: "#FFF" }}>{index + 1}</Text>
+                        </View>
                       ) : (
-                        <View style={styles.pendingCircle} />
+                        <View style={[styles.pendingCircle, { justifyContent: "center", alignItems: "center" }]}>
+                          <Text style={{ fontSize: 10, fontWeight: "700", color: "#94A3B8" }}>{index + 1}</Text>
+                        </View>
                       )}
                       {!isLast && <View style={[styles.timelineConnectingLine, { backgroundColor: isCompleted ? "#16A34A" : isCurrent ? "#FED7AA" : "#E2E8F0" }]} />}
                     </View>
@@ -347,10 +599,31 @@ export default function ApplicationDetailScreen() {
           <View style={styles.card}>
             <View style={styles.cardHeaderRow}>
               <Ionicons name="folder-open-outline" size={20} color="#083B75" />
+
               <Text style={styles.cardHeaderTitle}>Filing Documents</Text>
+
+              <Text style={styles.cardHeaderTitle}>{isGstAmendment ? "Supporting Documents" : "Required Documents"}</Text>
+
             </View>
             <View style={{ gap: 12 }}>
-              {app.documents.map((doc, i) => {
+              {isGstAmendment && formData.document && (
+                <View style={styles.docItemCard}>
+                  <View style={styles.docIconWrap}>
+                    <Ionicons name="checkmark-circle" size={24} color="#083B75" />
+                  </View>
+                  <View style={{ flex: 1, paddingRight: 8, justifyContent: "center" }}>
+                    <Text style={styles.docNameText}>{formData.document.name}</Text>
+                    {formData.document.size ? (
+                      <Text style={{ fontSize: 12, color: "#64748B", marginTop: 2 }}>{formData.document.size}</Text>
+                    ) : null}
+                  </View>
+                  <View style={styles.uploadedPill}>
+                    <Ionicons name="checkmark-circle" size={14} color="#083B75" />
+                    <Text style={styles.uploadedPillText}>Attached</Text>
+                  </View>
+                </View>
+              )}
+              {app.documents.map((doc: any, i: number) => {
                 const isUploaded = doc.status === "Uploaded";
                 return (
                   <View key={i} style={styles.docItemCard}>
@@ -403,15 +676,26 @@ export default function ApplicationDetailScreen() {
                 </React.Fragment>
               ))}
               <View style={styles.infoRow}>
+
                 <Text style={[styles.infoKey, { fontWeight: "700", color: "#0A2346" }]}>Total Paid</Text>
                 <Text style={[styles.infoVal, { color: "#EA580C", fontSize: 16 }]}>₹{totalAmount.toLocaleString()}</Text>
+
+                <Text style={[styles.infoKey, { fontWeight: "700", color: "#0A2346" }]}>Total Amount</Text>
+                <Text style={[styles.infoVal, { color: "#EA580C", fontSize: 16 }]}>{isGstAmendment ? "₹0 (Free)" : `₹${totalAmount.toLocaleString()}`}</Text>
+
               </View>
               <View style={styles.infoDivider} />
               <View style={styles.infoRow}>
                 <Text style={styles.infoKey}>Payment Status</Text>
+
                 <View style={[styles.statusPillSmall, { backgroundColor: isPaid ? "#ECFDF5" : "#FFF1E8" }]}>
                   <Text style={{ fontSize: 12, fontWeight: "700", color: isPaid ? "#059669" : "#EA580C" }}>
                     {app.paymentStatus}
+
+                <View style={[styles.statusPillSmall, { backgroundColor: (isGstAmendment || app.paymentStatus === "Paid") ? "#E0F2FE" : "#FFF1E8" }]}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: (isGstAmendment || app.paymentStatus === "Paid") ? "#083B75" : "#EA580C" }}>
+                    {isGstAmendment ? "Complimentary" : app.paymentStatus}
+
                   </Text>
                 </View>
               </View>
@@ -424,7 +708,7 @@ export default function ApplicationDetailScreen() {
       <View style={[styles.bottomActionBar, { paddingBottom: Math.max(insets.bottom, 12) }]}>
         <TouchableOpacity activeOpacity={0.8} onPress={() => router.push("/chat/support")} style={styles.actionBtnFilled}>
           <Ionicons name="headset-outline" size={18} color="#FFFFFF" />
-          <Text style={styles.actionBtnFilledText}>Support</Text>
+          <Text style={styles.actionBtnFilledText}>{isGstAmendment ? "Contact Support" : "Support"}</Text>
         </TouchableOpacity>
       </View>
     </View>

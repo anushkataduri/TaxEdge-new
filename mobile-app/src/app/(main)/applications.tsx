@@ -95,12 +95,68 @@ function formatDisplayDate(dateStr?: string): string {
 
 function getStatusBadgeStyle(status: string) {
   const lower = status.toLowerCase();
-  if (lower.includes("complete") || lower.includes("disbursed") || lower.includes("active")) return { bg: "#E0F2FE", text: "#083B75", label: "Completed" };
-  if (lower.includes("verification")) return { bg: "#FFF1E8", text: "#EA580C", label: "Under Verification" };
+  if (lower.includes("complete") || lower.includes("disbursed") || lower.includes("active") || lower.includes("approved")) return { bg: "#E0F2FE", text: "#083B75", label: "Completed" };
+  if (lower.includes("submit")) return { bg: "#E0F2FE", text: "#083B75", label: "Submitted" };
+  if (lower.includes("officer")) return { bg: "#FFF1E8", text: "#EA580C", label: "Officer Review" };
+  if (lower.includes("verification")) return { bg: "#F3E8FF", text: "#7E22CE", label: "Under Verification" };
   if (lower.includes("process") || lower.includes("calculation") || lower.includes("quote")) return { bg: "#E0F2FE", text: "#0284C7", label: "Processing" };
   if (lower.includes("credit")) return { bg: "#FFF1E8", text: "#EA580C", label: "Credit Review" };
   return { bg: "#EAF2FF", text: "#083B75", label: status };
 }
+
+const SUBMITTED_BANK_AMENDMENT: Application = {
+  id: "AA29944099962",
+  serviceId: "gst-amendment",
+  serviceName: "GST Amendment — Bank Accounts",
+  category: "GST",
+  status: "Under Verification",
+  progress: 30,
+  assignedExecutive: "Auto-Verification Engine",
+  paymentAmount: 0,
+  paymentStatus: "Paid",
+  createdAt: "2026-09-09T09:00:00.000Z",
+  documents: [
+    {
+      name: "pavan.Resume .pdf",
+      status: "Uploaded",
+      fileUri: "file://documents/pavan.Resume.pdf",
+    },
+  ],
+  formData: {
+    gstin: "—",
+    arn: "AA29944099962",
+    section: "Bank Accounts",
+    amendmentCategory: "Non-core (auto-approved)",
+    isCore: "false",
+    applicantName: "Akhil Kumar",
+    submissionDate: "9/9/2026",
+    currentValue: "HDFC Bank (XXXXX1234)",
+    requestedValue: "ICICI Bank (564687459478974516)",
+    currentValues: JSON.stringify({
+      "Bank Name": "HDFC Bank",
+      "Account Number": "XXXXX1234",
+      "IFSC Code": "HDFC0001234",
+      "Account Type": "Current",
+    }),
+    requestedValues: JSON.stringify({
+      "Bank Name": "ICICI Bank",
+      "Account Number": "564687459478974516",
+      "Confirm Account Number": "564687459478974516",
+      "IFSC Code": "ICIC0004587",
+      "Account Type": "Current",
+    }),
+    supportingDocName: "pavan.Resume .pdf",
+    documentSize: "0.1 MB",
+  },
+  timeline: [
+    { title: "Submitted", description: "Amendment request created", status: "completed", date: "9/9/2026" },
+    { title: "Under Verification", description: "TaxEdge review in progress", status: "current", date: "9/9/2026" },
+    { title: "Officer Review", description: "Assessing officer reviewing the change", status: "pending" },
+    { title: "Action Required", description: "If clarification is requested", status: "pending" },
+    { title: "Approved / Updated", description: "Amended registration issued", status: "pending" },
+  ],
+  chatHistory: [],
+};
 
 export default function ApplicationsScreen() {
   const colors = useTheme();
@@ -109,16 +165,26 @@ export default function ApplicationsScreen() {
   const insets = useSafeAreaInsets();
   useResponsive();
 
-  const applications = useApplicationStore((state) => state.applications);
+  const rawApplications = useApplicationStore((state) => state.applications);
   const unreadCount = useNotificationStore((state) => state.unreadCount);
+
+  const applications = useMemo(() => {
+    const hasBankAmendment = rawApplications.some(
+      (a) => a.id === "AA29944099962" || (a.serviceId === "gst-amendment" && a.formData?.section === "Bank Accounts")
+    );
+    if (!hasBankAmendment) {
+      return [SUBMITTED_BANK_AMENDMENT, ...rawApplications];
+    }
+    return rawApplications;
+  }, [rawApplications]);
 
   const [selectedCategory, setSelectedCategory] = useState<"ALL" | ServiceCategoryId>("ALL");
   const [statusFilter, setStatusFilter] = useState<StatusFilterType>("ALL");
 
-  const totalCount = applications.length || 12;
-  const inProgressCount = useMemo(() => applications.filter((a) => a.status !== "Completed" && !a.status.toLowerCase().includes("verification")).length || 5, [applications]);
-  const completedCount = useMemo(() => applications.filter((a) => a.status === "Completed").length || 5, [applications]);
-  const underVerificationCount = useMemo(() => applications.filter((a) => a.status.toLowerCase().includes("verification")).length || 2, [applications]);
+  const totalCount = applications.length;
+  const inProgressCount = useMemo(() => applications.filter((a) => a.status !== "Completed" && !a.status.toLowerCase().includes("verification")).length, [applications]);
+  const completedCount = useMemo(() => applications.filter((a) => a.status === "Completed").length, [applications]);
+  const underVerificationCount = useMemo(() => applications.filter((a) => a.status.toLowerCase().includes("verification")).length, [applications]);
 
   const filteredApplications = useMemo(() => {
     return applications.filter((app) => {
@@ -192,10 +258,36 @@ export default function ApplicationsScreen() {
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => setStatusFilter(statusFilter === item.key && item.key !== "ALL" ? "ALL" : item.key)}
-                  style={[styles.overviewCol, isSelected && styles.activeOverviewCol]}
+                  style={[
+                    styles.overviewCol,
+                    isSelected && (isDark ? { backgroundColor: "#1E293B", borderWidth: 1, borderColor: "#FF5722" } : styles.activeOverviewCol),
+                  ]}
                 >
-                  <Text style={[styles.overviewVal, { color: item.color }]}>{item.count}</Text>
-                  <Text style={[styles.overviewSub, { color: isDark ? colors.textSecondary : "#64748B" }]}>{item.label}</Text>
+                  <Text
+                    style={[
+                      styles.overviewVal,
+                      {
+                        color: isSelected
+                          ? (isDark ? "#FF7A00" : (item.isAll ? "#083B75" : item.color))
+                          : (isDark ? (item.isAll ? "#FFFFFF" : item.color) : item.color),
+                      },
+                    ]}
+                  >
+                    {item.count}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.overviewSub,
+                      {
+                        color: isDark
+                          ? (isSelected ? "#FFFFFF" : colors.textSecondary)
+                          : (isSelected ? "#0A2346" : "#64748B"),
+                        fontWeight: isSelected ? "700" : "500",
+                      },
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
                   <View style={isSelected ? styles.activeOverviewIndicator : styles.inactiveOverviewIndicator} />
                 </TouchableOpacity>
               </React.Fragment>
@@ -217,8 +309,19 @@ export default function ApplicationsScreen() {
         ) : (
           filteredApplications.map((item: Application) => {
             const badge = getStatusBadgeStyle(item.status);
+            const isGstAmendment = item.serviceId === "gst-amendment";
             const idColor = item.category === "BUSINESS" || item.category === "LOANS" ? "#EA580C" : "#083B75";
             const formattedDate = formatDisplayDate(item.createdAt);
+            const displayId = isGstAmendment && item.formData?.arn ? item.formData.arn : item.id;
+            const displayName = isGstAmendment && item.formData?.section ? `GST Amendment — ${item.formData.section}` : item.serviceName;
+
+            const isNonCore =
+              String(item.formData?.isCore).toLowerCase() === "false" ||
+              Boolean(item.formData?.amendmentCategory?.toLowerCase().includes("non-core")) ||
+              (item.formData?.section
+                ? ["Bank Accounts", "Authorised Signatories", "Contact Details"].some((s) => item.formData?.section?.includes(s))
+                : false);
+            const isCore = !isNonCore;
 
             return (
               <TouchableOpacity
@@ -233,7 +336,7 @@ export default function ApplicationsScreen() {
                 <ApplicationCardAvatar category={item.category} />
                 <View style={styles.cardContent}>
                   <View style={styles.cardTopRow}>
-                    <Text style={[styles.appIdText, { color: idColor }]}>{item.id}</Text>
+                    <Text style={[styles.appIdText, { color: idColor }]}>{displayId}</Text>
                     <View style={styles.cardBadgeWithArrow}>
                       <View style={[styles.statusBadge, { backgroundColor: badge.bg }]}>
                         <Text style={[styles.statusBadgeText, { color: badge.text }]}>{badge.label}</Text>
@@ -241,12 +344,49 @@ export default function ApplicationsScreen() {
                       <Ionicons name="chevron-forward" size={17} color="#EA580C" style={styles.cardChevron} />
                     </View>
                   </View>
-                  <Text style={[styles.serviceNameText, { color: isDark ? colors.text : "#0F172A" }]} numberOfLines={1}>{item.serviceName}</Text>
+                  <Text style={[styles.serviceNameText, { color: isDark ? colors.text : "#0F172A" }]} numberOfLines={1}>{displayName}</Text>
                   <View style={styles.cardBottomRow}>
                     <View style={styles.dateWrap}>
                       <Ionicons name="calendar-outline" size={13.5} color="#64748B" />
                       <Text style={styles.dateText}>{formattedDate}</Text>
                     </View>
+                    {isGstAmendment && item.formData?.gstin ? (
+                      <View style={{ flexDirection: "row", alignItems: "center", marginLeft: 10, backgroundColor: isDark ? "#1E293B" : "#EFF6FF", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4, borderWidth: 0.5, borderColor: "#BFDBFE" }}>
+                        <Text style={{ fontSize: 10.5, fontWeight: "600", color: isDark ? "#93C5FD" : "#083B75" }}>{item.formData.gstin}</Text>
+                      </View>
+                    ) : null}
+                    {isGstAmendment ? (
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          marginLeft: 6,
+                          backgroundColor: isCore
+                            ? (isDark ? "rgba(234, 88, 12, 0.18)" : "#FFF7ED")
+                            : (isDark ? "rgba(2, 132, 199, 0.18)" : "#EFF6FF"),
+                          paddingHorizontal: 6,
+                          paddingVertical: 2.5,
+                          borderRadius: 4,
+                          borderWidth: 0.5,
+                          borderColor: isCore
+                            ? (isDark ? "rgba(234, 88, 12, 0.4)" : "#FED7AA")
+                            : (isDark ? "rgba(2, 132, 199, 0.4)" : "#BFDBFE"),
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontSize: 10,
+                            fontWeight: "800",
+                            letterSpacing: 0.3,
+                            color: isCore
+                              ? (isDark ? "#FB923C" : "#EA580C")
+                              : (isDark ? "#38BDF8" : "#0284C7"),
+                          }}
+                        >
+                          {isCore ? "CORE" : "NON-CORE"}
+                        </Text>
+                      </View>
+                    ) : null}
                   </View>
                 </View>
               </TouchableOpacity>
