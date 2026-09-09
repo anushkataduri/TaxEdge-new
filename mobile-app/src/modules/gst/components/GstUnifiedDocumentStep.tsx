@@ -95,6 +95,13 @@ export const INITIAL_DOCUMENTS: DocumentItem[] = [
   },
 ];
 
+const ADDRESS_PROOF_TYPES = [
+  "Rental Agreement",
+  "Ownership Proof",
+  "Electricity Bill",
+  "Other Address Proof",
+];
+
 interface GstUnifiedDocumentStepProps {
   documents: DocumentItem[];
   onUpdateDocuments: (updatedDocs: DocumentItem[]) => void;
@@ -106,6 +113,7 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
 }) => {
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
   const [cropTarget, setCropTarget] = useState<{ docId: string; uri: string } | null>(null);
+  const [showAddressProofModal, setShowAddressProofModal] = useState(false);
 
   // Pure functional calculation of progress using reduce
   const uploadedCount = documents.reduce(
@@ -123,6 +131,16 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
   ];
 
   const handleUploadOption = async (docId: string, source: "gallery" | "camera") => {
+    const targetDoc = documents.find(d => d.id === docId);
+    if (targetDoc?.id === "address-proof" && targetDoc.subtitle === "Electricity Bill / Rental Agreement") {
+      Alert.alert(
+        "Select Document Type", 
+        "Please select the type of address proof from the dropdown first.",
+        [{ text: "OK", onPress: () => setShowAddressProofModal(true) }]
+      );
+      return;
+    }
+
     const uri = source === "camera" ? await pickImageFromCamera(false) : await pickImageFromGallery(false);
     if (uri) {
       setCropTarget({ docId, uri });
@@ -148,6 +166,16 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
   };
 
   const handlePromptUpload = (docId: string) => {
+    const targetDoc = documents.find(d => d.id === docId);
+    if (targetDoc?.id === "address-proof" && targetDoc.subtitle === "Electricity Bill / Rental Agreement") {
+      Alert.alert(
+        "Select Document Type", 
+        "Please select the type of address proof from the dropdown first.",
+        [{ text: "OK", onPress: () => setShowAddressProofModal(true) }]
+      );
+      return;
+    }
+
     Alert.alert("Upload Document", "Choose source to select document image:", [
       { text: "Camera", onPress: () => handleUploadOption(docId, "camera") },
       { text: "Photo Gallery", onPress: () => handleUploadOption(docId, "gallery") },
@@ -185,7 +213,7 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
       {/* Progress Header Card */}
       <View style={styles.progressCard}>
         <View style={styles.progressRow}>
-          <View>
+          <View style={{ flex: 1, paddingRight: 10 }}>
             <Text style={styles.progressTitle}>Document Checklist</Text>
             <Text style={styles.progressSubtitle}>
               Upload original clear photos or scanned copies
@@ -239,11 +267,23 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
                             <Text style={styles.requiredAsterisk}> *</Text>
                           )}
                         </View>
-                        <Text style={styles.docSubtitle} numberOfLines={1}>
-                          {isUploaded
-                            ? doc.fileName || "Uploaded document"
-                            : doc.subtitle}
-                        </Text>
+                        {doc.id === "address-proof" && !isUploaded ? (
+                           <TouchableOpacity 
+                             onPress={() => setShowAddressProofModal(true)} 
+                             style={{flexDirection: 'row', alignItems: 'center', marginTop: 4, paddingVertical: 2}}
+                           >
+                              <Text style={[styles.docSubtitle, {color: BrandColors.PRIMARY_BLUE, marginTop: 0}]}>
+                                {doc.subtitle === "Electricity Bill / Rental Agreement" ? "Select Address Proof" : doc.subtitle}
+                              </Text>
+                              <Ionicons name="chevron-down" size={14} color={BrandColors.PRIMARY_BLUE} style={{marginLeft: 4}} />
+                           </TouchableOpacity>
+                        ) : (
+                          <Text style={styles.docSubtitle} numberOfLines={1}>
+                            {isUploaded
+                              ? doc.fileName || "Uploaded document"
+                              : doc.subtitle}
+                          </Text>
+                        )}
                       </View>
 
                       {/* Status Badge */}
@@ -428,6 +468,39 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* Address Proof Selection Modal */}
+      <Modal visible={showAddressProofModal} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.selectModalOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAddressProofModal(false)}
+        >
+          <View style={styles.selectModalContent}>
+            <Text style={styles.selectModalTitle}>Select Address Proof</Text>
+            {ADDRESS_PROOF_TYPES.map((proof) => (
+              <TouchableOpacity
+                key={proof}
+                style={styles.selectModalOption}
+                onPress={() => {
+                  const updated = documents.map((doc) =>
+                    doc.id === "address-proof"
+                      ? { ...doc, subtitle: proof }
+                      : doc
+                  );
+                  onUpdateDocuments(updated);
+                  setShowAddressProofModal(false);
+                }}
+              >
+                <Text style={styles.selectModalOptionText}>{proof}</Text>
+                {documents.find(d => d.id === "address-proof")?.subtitle === proof && (
+                  <Ionicons name="checkmark" size={18} color={BrandColors.PRIMARY_BLUE} />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        </TouchableOpacity>
       </Modal>
 
       {/* In-App Crop & Done Modal with top-right 'DONE' text button */}
@@ -770,5 +843,35 @@ const styles = StyleSheet.create({
     fontSize: 13.5,
     fontWeight: "600",
     color: "#FFFFFF",
+  },
+  selectModalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "flex-end",
+  },
+  selectModalContent: {
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    padding: 20,
+    paddingBottom: 40,
+  },
+  selectModalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    color: BrandColors.TEXT_PRIMARY,
+    marginBottom: 16,
+  },
+  selectModalOption: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  selectModalOptionText: {
+    fontSize: 15,
+    color: BrandColors.TEXT_PRIMARY,
   },
 });

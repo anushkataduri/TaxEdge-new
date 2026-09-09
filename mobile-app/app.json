@@ -21,9 +21,7 @@
       },
       "predictiveBackGestureEnabled": false,
       "usesCleartextTraffic": true,
-      "permissions": [
-        "android.permission.RECORD_AUDIO"
-      ]
+      "permissions": ["android.permission.RECORD_AUDIO"]
     },
     "web": {
       "output": "static",
@@ -53,6 +51,14 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#0066CC"
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
         }
       ]
     ],

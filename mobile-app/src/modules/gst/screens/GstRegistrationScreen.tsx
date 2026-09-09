@@ -45,13 +45,35 @@ export const GstRegistrationScreen: React.FC = () => {
 
   // Form State
   const [businessData, setBusinessData] = useState<GstBusinessFormData>({
+    legalName: "",
     businessName: "",
     businessType: "",
     natureOfBusiness: "",
+    placeOfBusiness: "",
+    businessStartDate: "",
+    reasonForRegistration: "",
+    compositionScheme: "",
     businessAddress: "",
+    city: "",
+    district: "",
+    state: "",
+    pinCode: "",
+    hsnCode: "",
+    accountHolderName: "",
     bankAccountNumber: "",
+    confirmBankAccountNumber: "",
     ifscCode: "",
+    bankName: "",
+    branchName: "",
+    accountType: "",
+    signatoryName: "",
+    signatoryPan: "",
+    signatoryDob: "",
+    signatoryDesignation: "",
+    signatoryMobile: "",
+    signatoryEmail: "",
     addressProofType: "Rental Agreement",
+    aadhaarConsent: false,
   });
   const [businessErrors, setBusinessErrors] = useState<Record<string, string>>({});
 
@@ -68,7 +90,10 @@ export const GstRegistrationScreen: React.FC = () => {
     handleCancel,
   } = useUniversalDraftGuard({
     isDirty: () => {
-      const hasBusiness = Object.values(businessData).some((v) => Boolean(v && v.trim() && v !== "Rental Agreement"));
+      const hasBusiness = Object.values(businessData).some((v) => 
+        (typeof v === 'string' && v.trim() !== "" && v !== "Rental Agreement") || 
+        (typeof v === 'boolean' && v === true)
+      );
       const hasDocs = documents.some((d) => Boolean(d.fileUri));
       return hasBusiness || hasDocs;
     },
@@ -139,7 +164,9 @@ export const GstRegistrationScreen: React.FC = () => {
         return Object.keys(fields).reduce<Record<string, string>>((acc, k) => {
           const key = k as keyof GstBusinessFormData;
           if (acc[key]) {
-            const revalidated = GstValidators.validateBusinessField(key, updated[key] || "");
+            const val = updated[key];
+            const strVal = typeof val === "boolean" ? String(val) : (val || "");
+            const revalidated = GstValidators.validateBusinessField(key, strVal);
             return { ...acc, [key]: revalidated };
           }
           return acc;
@@ -150,7 +177,9 @@ export const GstRegistrationScreen: React.FC = () => {
   };
 
   const handleBusinessBlur = (field: keyof GstBusinessFormData) => {
-    const errorMsg = GstValidators.validateBusinessField(field, businessData[field] || "");
+    const val = businessData[field];
+    const strVal = typeof val === "boolean" ? String(val) : (val || "");
+    const errorMsg = GstValidators.validateBusinessField(field, strVal);
     setBusinessErrors((prev) => ({ ...prev, [field]: errorMsg }));
   };
 
@@ -159,6 +188,7 @@ export const GstRegistrationScreen: React.FC = () => {
     setBusinessErrors(errs);
     if (Object.keys(errs).length > 0) {
       scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      Alert.alert("Required Fields Missing", "Please enter all the required fields correctly to proceed.");
       return false;
     }
     return true;
@@ -178,7 +208,10 @@ export const GstRegistrationScreen: React.FC = () => {
   };
 
   const hasAnyDataEntered = () => {
-    const hasBusiness = Object.values(businessData).some((v) => Boolean(v && v.trim() && v !== "Rental Agreement"));
+    const hasBusiness = Object.values(businessData).some((v) => 
+      (typeof v === 'string' && v.trim() !== "" && v !== "Rental Agreement") || 
+      (typeof v === 'boolean' && v === true)
+    );
     const hasDocs = documents.some((d) => Boolean(d.fileUri));
     return hasBusiness || hasDocs;
   };
