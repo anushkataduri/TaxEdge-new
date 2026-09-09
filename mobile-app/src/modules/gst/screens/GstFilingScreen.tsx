@@ -41,9 +41,13 @@ export const GstFilingScreen: React.FC = () => {
   // Form State: Starts clean without arbitrary dummy pre-fills
   const [periodData, setPeriodData] = useState<GstFilingPeriodData>({
     periodType: "",
+    financialYear: "FY 2025-26",
+    filingPeriod: "",
     filingMonth: "",
     gstin: "",
     filingType: "",
+    filingNature: "Regular Return",
+    calculationMethod: "ca_assisted",
   });
   const [periodErrors, setPeriodErrors] = useState<Record<string, string>>({});
   const [documents, setDocuments] = useState<FilingDocItem[]>(INITIAL_FILING_DOCS);
@@ -74,6 +78,8 @@ export const GstFilingScreen: React.FC = () => {
     isDirty: () =>
       Boolean(
         periodData.periodType ||
+        periodData.financialYear ||
+        periodData.filingPeriod ||
         periodData.filingMonth ||
         periodData.gstin ||
         periodData.filingType ||
@@ -141,7 +147,12 @@ export const GstFilingScreen: React.FC = () => {
     if (!GstValidators.isNotEmpty(periodData.periodType)) {
       errs.periodType = "Please select a filing frequency";
     }
-    if (!GstValidators.isNotEmpty(periodData.filingMonth)) {
+    if (!periodData.financialYear || !GstValidators.isNotEmpty(periodData.financialYear)) {
+      errs.financialYear = "Please select a financial year";
+    }
+    const periodVal = periodData.filingPeriod || periodData.filingMonth;
+    if (!periodVal || !GstValidators.isNotEmpty(periodVal)) {
+      errs.filingPeriod = "Please select a filing return period";
       errs.filingMonth = "Please select a filing return period";
     }
     if (!GstValidators.isValidGstin(periodData.gstin)) {
@@ -153,7 +164,7 @@ export const GstFilingScreen: React.FC = () => {
 
     setPeriodErrors(errs);
     if (Object.keys(errs).length > 0) {
-      Alert.alert("Required Fields Missing", "Please select filing frequency, return month, valid GSTIN, and return type.");
+      Alert.alert("Required Fields Missing", "Please select filing frequency, financial year, return period, valid GSTIN, and return type.");
       return false;
     }
     return true;
@@ -204,20 +215,42 @@ export const GstFilingScreen: React.FC = () => {
         .filter((d) => d.fileUri)
         .map((d) => d.name);
 
+      const periodLabel = periodData.filingPeriod || periodData.filingMonth;
+      const businessDisplayName = periodData.tradeName || periodData.businessName || "Shree Deshmukh Traders";
+      const legalDisplayName = periodData.legalName || businessDisplayName;
+
+      const appDocuments = documents.map((d) => ({
+        name: d.name,
+        status: (d.fileUri ? "Uploaded" : "Pending") as "Uploaded" | "Pending",
+        fileUri: d.fileUri,
+      }));
+
       const appId = createApplication(
         "gst-filing",
-        `GST Return Filing (${periodData.filingType.split(" ")[0]} - ${periodData.filingMonth})`,
+        `GST Return Filing (${periodData.filingType ? periodData.filingType.split(" ")[0] : "GSTR-3B"} - ${periodLabel})`,
         "GST",
         {
+          applicantName: businessDisplayName,
+          businessName: businessDisplayName,
+          legalName: legalDisplayName,
+          state: periodData.state || "Karnataka",
           gstin: periodData.gstin,
-          filingMonth: periodData.filingMonth,
+          taxpayerScheme: periodData.taxpayerScheme || "Regular Scheme",
+          filingNature: periodData.filingNature || "Regular Return",
+          calculationMethod: periodData.calculationMethod || "ca_assisted",
+          financialYear: periodData.financialYear || "FY 2025-26",
+          filingPeriod: periodLabel,
+          filingMonth: periodLabel,
           filingType: periodData.filingType,
           filingFrequency: periodData.periodType,
+          turnover: periodData.taxableSales || periodData.turnover || "",
+          eligibleItc: periodData.eligibleItc || "",
           paymentMethod: selectedMethod.toUpperCase(),
           transactionId: newTxn,
         },
-        requiredDocNames.length > 0 ? requiredDocNames : ["Sales Invoices", "Purchase Invoices"],
-        2344
+        appDocuments,
+        2344,
+        "Paid"
       );
 
       setCreatedAppId(appId);
@@ -227,7 +260,7 @@ export const GstFilingScreen: React.FC = () => {
       // Dispatch real-time notification
       useNotificationStore.getState().addNotification(
         "Payment & Filing Received",
-        `Your GST filing request for ${periodData.filingMonth} (App ID: ${appId}) has been confirmed. CA is preparing reconciliation.`,
+        `Your GST filing request for ${periodLabel} (${periodData.financialYear || "FY 2025-26"}) (App ID: ${appId}) has been confirmed. CA is preparing reconciliation.`,
         "gst"
       );
     }
@@ -290,14 +323,19 @@ export const GstFilingScreen: React.FC = () => {
           <GstFilingDocumentsStep
             documents={documents}
             onUpdateDocuments={setDocuments}
-            filingPeriodText={`${periodData.filingType ? periodData.filingType.split(" ")[0] : "GSTR-3B"} — ${periodData.filingMonth || "Current Period"}`}
+            filingPeriodText={`${periodData.filingType ? periodData.filingType.split(" ")[0] : "GSTR-3B"} — ${periodData.filingPeriod || periodData.filingMonth || "Current Period"}`}
+            filingNature={periodData.filingNature || "Regular Return"}
           />
         )}
 
         {currentStep === 2 && (
           <GstFilingReviewStep
             gstin={periodData.gstin || "29AAAAA0000A1Z5"}
-            filingMonth={periodData.filingMonth || "July 2026"}
+            businessName={periodData.tradeName || periodData.businessName || "Shree Deshmukh Traders"}
+            taxpayerScheme={periodData.taxpayerScheme || "Regular Scheme"}
+            filingNature={periodData.filingNature || "Regular Return"}
+            financialYear={periodData.financialYear || "FY 2025-26"}
+            filingMonth={periodData.filingPeriod || periodData.filingMonth || "July 2026"}
             filingType={periodData.filingType || "GSTR-3B (Monthly Summary Return)"}
             filingFrequency={periodData.periodType || "Monthly"}
             uploadedDocsCount={uploadedDocsCount}
@@ -331,7 +369,7 @@ export const GstFilingScreen: React.FC = () => {
             serviceName={`GST Filing (${periodData.filingType ? periodData.filingType.split(" ")[0] : "GSTR-3B"})`}
             txnId={txnId || "TXN202608942"}
             paymentMethod={selectedMethod.toUpperCase()}
-            filingPeriod={periodData.filingMonth || "July 2026"}
+            filingPeriod={periodData.filingPeriod || periodData.filingMonth || "July 2026"}
             gstin={periodData.gstin || "29AAAAA0000A1Z5"}
             onViewReceipt={() => setCurrentStep(5)}
             onViewApplication={() => setCurrentStep(6)}
@@ -344,7 +382,7 @@ export const GstFilingScreen: React.FC = () => {
             serviceName={`GST Filing Service (${periodData.filingType ? periodData.filingType.split(" ")[0] : "GSTR-3B"})`}
             invoiceNo={`INV-2026-${(createdAppId || "84920").slice(-5)}`}
             gstin={periodData.gstin || "29AAAAA0000A1Z5"}
-            period={periodData.filingMonth || "July 2026"}
+            period={periodData.filingPeriod || periodData.filingMonth || "July 2026"}
             txnId={txnId || "TXN202608942"}
             paymentMethod={selectedMethod.toUpperCase()}
           />
@@ -353,10 +391,12 @@ export const GstFilingScreen: React.FC = () => {
         {currentStep === 6 && (
           <GstApplicationStatusStep
             appId={createdAppId || "GST-2026-84920"}
-            businessName={periodData.gstin ? `GSTIN: ${periodData.gstin}` : "Registered Business"}
-            serviceName={`GST Filing (${periodData.filingMonth || "Current Period"})`}
+            businessName={periodData.tradeName || periodData.businessName || (periodData.gstin ? `GSTIN: ${periodData.gstin}` : "Registered Business")}
+            serviceName={`GST Filing (${periodData.filingPeriod || periodData.filingMonth || "Current Period"})`}
             appliedDate="Today"
             estCompletion="1-2 Business Days"
+            isFilingWorkflow={true}
+            onReuploadDocuments={() => setCurrentStep(1)}
           />
         )}
 

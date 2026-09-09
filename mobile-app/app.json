@@ -54,6 +54,14 @@
           "icon": "./assets/images/icon.png",
           "color": "#0066CC"
         }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
       ]
     ],
     "experiments": {
@@ -69,3 +77,4 @@
     "owner": "srinivas12345678"
   }
 }
+ 

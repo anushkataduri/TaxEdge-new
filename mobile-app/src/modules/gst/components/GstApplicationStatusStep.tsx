@@ -17,9 +17,11 @@ interface GstApplicationStatusStepProps {
   businessName?: string;
   serviceName?: string;
   estCompletion?: string;
+  isFilingWorkflow?: boolean;
+  onReuploadDocuments?: () => void;
 }
 
-const TIMELINE_STEPS: TimelineItem[] = [
+const GST_REGISTRATION_TIMELINE: TimelineItem[] = [
   { id: "1", title: "Application Submitted", subtitle: "Form & documents received", status: "completed" },
   { id: "2", title: "Document Verification", subtitle: "Assigned CA reviewing proofs", status: "active" },
   { id: "3", title: "TRN Generation", subtitle: "Temporary Reference Number creation", status: "pending" },
@@ -28,14 +30,31 @@ const TIMELINE_STEPS: TimelineItem[] = [
   { id: "6", title: "GST Certificate Issued", subtitle: "GSTIN & certificate delivered", status: "pending" },
 ];
 
+const GST_FILING_TIMELINE: TimelineItem[] = [
+  { id: "1", title: "Customer Request", subtitle: "Filing request initiated", status: "completed" },
+  { id: "2", title: "Document Upload", subtitle: "Sales & purchase registers submitted", status: "completed" },
+  { id: "3", title: "Staff Verification", subtitle: "Chartered Accountant reviewing invoices", status: "active" },
+  { id: "4", title: "Data Preparation", subtitle: "Accounting integration & ledger extraction", status: "pending" },
+  { id: "5", title: "Return Preparation", subtitle: "Form computation & ITC reconciliation", status: "pending" },
+  { id: "6", title: "Customer Review", subtitle: "Tax summary shared with business", status: "pending" },
+  { id: "7", title: "Customer Approval", subtitle: "Client signs off return computation", status: "pending" },
+  { id: "8", title: "GST Filing Submission", subtitle: "Return submitted to GSTN portal", status: "pending" },
+  { id: "9", title: "Acknowledgement Receipt", subtitle: "ARN generated & filed copy delivered", status: "pending" },
+  { id: "10", title: "Filing Completed", subtitle: "Compliance verified & closed", status: "pending" },
+];
+
 export const GstApplicationStatusStep: React.FC<GstApplicationStatusStepProps> = ({
   appId = "GST-2026-84920",
   appliedDate = "Today",
   businessName = "Your Business",
   serviceName = "GST Registration",
   estCompletion = "3-5 Business Days",
+  isFilingWorkflow,
+  onReuploadDocuments,
 }) => {
   const router = useRouter();
+  const isFiling = Boolean(isFilingWorkflow || serviceName.toLowerCase().includes("filing"));
+  const timelineSteps = isFiling ? GST_FILING_TIMELINE : GST_REGISTRATION_TIMELINE;
 
   const handleGoHome = () => {
     router.replace("/(main)/home");
@@ -93,8 +112,8 @@ export const GstApplicationStatusStep: React.FC<GstApplicationStatusStepProps> =
       {/* Application Progress Timeline */}
       <Text style={styles.sectionHeading}>Application Progress</Text>
       <View style={styles.timelineList}>
-        {TIMELINE_STEPS.map((step, idx) => {
-          const isLast = idx === TIMELINE_STEPS.length - 1;
+        {timelineSteps.map((step, idx) => {
+          const isLast = idx === timelineSteps.length - 1;
           return (
             <View key={step.id} style={styles.timelineRow}>
               {/* Timeline Indicator Column */}
@@ -141,8 +160,25 @@ export const GstApplicationStatusStep: React.FC<GstApplicationStatusStepProps> =
         })}
       </View>
 
-      {/* Navigation Buttons */}
+      {/* Navigation & Action Buttons */}
       <View style={styles.actionButtonsCol}>
+        {isFiling && (
+          <TouchableOpacity
+            style={styles.reuploadBtn}
+            activeOpacity={0.8}
+            onPress={() => {
+              if (onReuploadDocuments) {
+                onReuploadDocuments();
+              } else {
+                router.push("/(main)/applications");
+              }
+            }}
+          >
+            <Ionicons name="cloud-upload-outline" size={18} color="#0284C7" />
+            <Text style={styles.reuploadBtnText}>Missing Documents? Re-upload Here</Text>
+          </TouchableOpacity>
+        )}
+
         <TouchableOpacity
           style={styles.primaryHomeBtn}
           activeOpacity={0.85}
@@ -367,6 +403,23 @@ const styles = StyleSheet.create({
   actionButtonsCol: {
     gap: 10,
     marginTop: 4,
+  },
+  reuploadBtn: {
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: "#F0F9FF",
+    borderWidth: 1.5,
+    borderColor: "#BAE6FD",
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  reuploadBtnText: {
+    fontSize: 13.5,
+    fontWeight: "700",
+    color: "#0284C7",
+    fontFamily: Platform.select({ ios: "System", android: "sans-serif-medium" }),
   },
   primaryHomeBtn: {
     height: 50,
