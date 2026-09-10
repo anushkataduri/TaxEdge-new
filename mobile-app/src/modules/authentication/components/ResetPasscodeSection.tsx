@@ -17,6 +17,8 @@ import {
   BorderWidth,
 } from "../../../shared/theme";
 import { PrimaryButton } from "../../../shared/components/Button/PrimaryButton";
+import { validatePasscode } from "../validation/authSchema";
+import { useAuthStore } from "../store/authStore";
 
 interface ResetPasscodeSectionProps {
   passcode: string;
@@ -30,6 +32,7 @@ interface ResetPasscodeSectionProps {
   submitButtonTitle?: string;
   loading: boolean;
   error?: string | null;
+  mobileNumber?: string;
 }
 
 export function ResetPasscodeSection({
@@ -40,10 +43,14 @@ export function ResetPasscodeSection({
   onSubmit,
   loading,
   error,
+  mobileNumber,
 }: ResetPasscodeSectionProps) {
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
   const titleColor = isDark ? "#FFFFFF" : "#06152D";
+
+  const storeMobileNumber = useAuthStore((state) => state.mobileNumber);
+  const effectiveMobileNumber = mobileNumber || storeMobileNumber;
 
   const newPasscodeRef = useRef<TextInput>(null);
   const confirmPasscodeRef = useRef<TextInput>(null);
@@ -60,10 +67,13 @@ export function ResetPasscodeSection({
     const clean = text.replace(/[^0-9]/g, "");
     onChangePasscode(clean);
     if (clean.length === 6) {
-      setTimeout(() => {
-        confirmPasscodeRef.current?.focus();
-        setActiveSection("confirm");
-      }, 50);
+      const v = validatePasscode(clean, effectiveMobileNumber);
+      if (v.valid) {
+        setTimeout(() => {
+          confirmPasscodeRef.current?.focus();
+          setActiveSection("confirm");
+        }, 50);
+      }
     }
   };
 
@@ -77,10 +87,15 @@ export function ResetPasscodeSection({
 
   const isPasscodeComplete = passcode.length === 6;
   const isConfirmComplete = confirmPasscode.length === 6;
+  const passcodeValidation = isPasscodeComplete
+    ? validatePasscode(passcode, effectiveMobileNumber)
+    : { valid: true };
+  const isPasscodeValid = isPasscodeComplete && passcodeValidation.valid;
   const doPasscodesMatch = passcode === confirmPasscode;
 
-  const isFormValid = isPasscodeComplete && isConfirmComplete && doPasscodesMatch;
-  const showMismatchError = isConfirmComplete && !doPasscodesMatch;
+  const isFormValid = isPasscodeValid && isConfirmComplete && doPasscodesMatch;
+  const showPasscodeError = isPasscodeComplete && !passcodeValidation.valid;
+  const showMismatchError = isPasscodeValid && isConfirmComplete && !doPasscodesMatch;
 
   const renderBoxes = (
     value: string,
@@ -151,7 +166,7 @@ export function ResetPasscodeSection({
         <Text style={[styles.sectionTitle, { color: titleColor }]}>
           New Passcode
         </Text>
-        {renderBoxes(passcode, activeSection === "new", false, () => {
+        {renderBoxes(passcode, activeSection === "new", showPasscodeError, () => {
           newPasscodeRef.current?.focus();
           setActiveSection("new");
         })}
@@ -197,10 +212,11 @@ export function ResetPasscodeSection({
       />
 
       {/* Inline Validation Error Message */}
-      {showMismatchError ? (
+      {showPasscodeError ? (
+        <Text style={styles.inlineErrorText}>{passcodeValidation.error}</Text>
+      ) : showMismatchError ? (
         <Text style={styles.inlineErrorText}>Passcodes do not match.</Text>
-      ) : null}
-      {error && !showMismatchError ? (
+      ) : error ? (
         <Text style={styles.inlineErrorText}>{error}</Text>
       ) : null}
 

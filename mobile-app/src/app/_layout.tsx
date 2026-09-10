@@ -1,6 +1,7 @@
 import * as SplashScreen from "expo-splash-screen";
 import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
+import { ThemeProvider } from "../design-system/theme";
 import { AnimatedSplashOverlay } from "../components/animated-icon";
 
 SplashScreen.preventAutoHideAsync();
@@ -8,11 +9,13 @@ SplashScreen.preventAutoHideAsync();
 export default function RootLayout() {
   return (
     <SafeAreaProvider>
-      <AnimatedSplashOverlay />
-      <Stack screenOptions={{ headerShown: false }}>
+      <ThemeProvider>
+        <AnimatedSplashOverlay />
+        <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(main)" />
+          <Stack.Screen name="settings" />
           <Stack.Screen name="service/gst" />
           <Stack.Screen name="service/gst-registration" />
           <Stack.Screen name="service/gst-filing" />
@@ -59,6 +62,8 @@ export default function RootLayout() {
           <Stack.Screen name="chat/[id]" />
           <Stack.Screen name="notifications" />
         </Stack>
+      </ThemeProvider>
     </SafeAreaProvider>
   );
 }
+

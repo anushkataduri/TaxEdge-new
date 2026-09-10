@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { mockApplications } from "../data/applications";
+import { notificationService } from "../modules/notifications/services/notificationService";
 import type {
   Application,
   ApplicationDocument,
@@ -80,6 +81,7 @@ export interface ApplicationState {
     requiredDocs: (string | ApplicationDocument)[],
     paymentAmount: number,
     initialPaymentStatus?: PaymentStatus,
+    skipNotification?: boolean,
   ) => string;
   uploadDocument: (appId: string, docName: string, fileUri: string) => void;
   addChatMessage: (appId: string, sender: ChatSender, text: string) => void;
@@ -107,6 +109,7 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
     requiredDocs,
     paymentAmount,
     initialPaymentStatus,
+    skipNotification,
   ) => {
     const randomNum = Math.floor(10000 + Math.random() * 90000);
     const prefix = category.substring(0, 4).toUpperCase();
@@ -182,6 +185,10 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
       applications: [newApp, ...state.applications],
     }));
 
+    if (!skipNotification) {
+      notificationService.notifyApplicationSubmitted(serviceName, appId);
+    }
+
     return appId;
   },
   uploadDocument: (appId, docName, fileUri) =>
@@ -254,10 +261,15 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
       }, 1500);
     }
   },
-  payApplication: (appId) =>
+  payApplication: (appId) => {
+    let paidAmount = 0;
+    let paidServiceName = "";
+
     set((state) => ({
       applications: state.applications.map((app) => {
         if (app.id !== appId) return app;
+        paidAmount = app.paymentAmount;
+        paidServiceName = app.serviceName;
         const newTimeline = app.timeline.map((step) =>
           step.title === "Verification"
             ? { ...step, status: "completed" as const }
@@ -271,5 +283,10 @@ export const useApplicationStore = create<ApplicationState>((set) => ({
           timeline: newTimeline,
         };
       }),
-    })),
+    }));
+
+    if (paidAmount > 0 || paidServiceName) {
+      notificationService.notifyPaymentSuccessful(paidAmount, paidServiceName);
+    }
+  },
 }));

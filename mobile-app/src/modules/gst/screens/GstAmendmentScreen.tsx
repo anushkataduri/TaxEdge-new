@@ -19,7 +19,6 @@ import { GstValidators } from "../utils/gstValidators";
 import { pickImageFromGallery, pickImageFromCamera } from "../utils/imageUploadHelper";
 import { styles } from "./GstAmendmentScreen.styles";
 import { useApplicationStore } from "../../../store/applicationStore";
-import { useNotificationStore } from "../../../store/notificationStore";
 import { useAuthStore } from "../../../store/authStore";
 import { UniversalDraftModal } from "../../../shared/components/UniversalDraftModal";
 import { useUniversalDraftGuard } from "../../../shared/hooks/useUniversalDraftGuard";
@@ -259,7 +258,6 @@ export default function GstAmendmentScreen() {
 
   const customer = useAuthStore((state) => state.customer);
   const createApplication = useApplicationStore((state) => state.createApplication);
-  const addNotification = useNotificationStore((state) => state.addNotification);
 
   // Workflow state
   const [currentStep, setCurrentStep] = useState<AmendmentStep>("LANDING");
@@ -766,13 +764,6 @@ export default function GstAmendmentScreen() {
         },
         supportingDoc ? [supportingDoc.name] : ["Amendment Supporting Proof"],
         999
-      );
-
-      // Add Notification
-      addNotification(
-        "GST Amendment Filed",
-        `Your GST Amendment request for ${selectedSection.title} (ARN: ${generatedArn}) has been submitted successfully.`,
-        "gst"
       );
 
       setSubmissionResult({

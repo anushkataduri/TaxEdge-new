@@ -21,7 +21,7 @@ import { GstValidators } from "../utils/gstValidators";
 import { styles } from "./GstCertificateScreen.styles";
 import { useAuthStore } from "../../../store/authStore";
 import { useApplicationStore } from "../../../store/applicationStore";
-import { useNotificationStore } from "../../../store/notificationStore";
+import { notificationService } from "../../notifications/services/notificationService";
 
 const CERTIFICATE_REQUEST_TYPES = [
   "Download Existing Certificate (Form REG-06)",
@@ -98,14 +98,12 @@ export default function GstCertificateScreen() {
           requestType,
         },
         ["GST Certificate REG-06"],
-        0
+        0,
+        "Paid",
+        true
       );
 
-      useNotificationStore.getState().addNotification(
-        "Certificate Ready",
-        `Your GST Certificate request for ${gstin} is ready. App ID: ${appId}.`,
-        "gst"
-      );
+      notificationService.notifyCertificateReady("GST", gstin);
     }, 800);
   };
 

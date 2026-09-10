@@ -256,13 +256,6 @@ export const GstFilingScreen: React.FC = () => {
       setCreatedAppId(appId);
       markSubmitted();
       clearGstFilingDraft();
-
-      // Dispatch real-time notification
-      useNotificationStore.getState().addNotification(
-        "Payment & Filing Received",
-        `Your GST filing request for ${periodLabel} (${periodData.financialYear || "FY 2025-26"}) (App ID: ${appId}) has been confirmed. CA is preparing reconciliation.`,
-        "gst"
-      );
     }
 
     if (currentStep < 4) {

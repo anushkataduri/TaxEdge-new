@@ -1,7 +1,8 @@
 import { create } from "zustand";
-
-import { mockNotifications } from "../data/notifications";
+import { localStorage } from "../core/storage/localStorage";
 import type { AppNotification, NotificationType } from "../types/domain";
+
+const NOTIFICATIONS_STORAGE_KEY = "@taxedge_notifications";
 
 export interface NotificationState {
   notifications: AppNotification[];
@@ -13,15 +14,27 @@ export interface NotificationState {
   ) => void;
   markAllAsRead: () => void;
   markAsRead: (id: string) => void;
+  clearAll: () => void;
+  loadPersisted: () => Promise<void>;
 }
 
+const persistNotifications = async (notifications: AppNotification[]) => {
+  try {
+    await localStorage.setItem(NOTIFICATIONS_STORAGE_KEY, JSON.stringify(notifications));
+  } catch (err) {
+    console.warn("Failed to persist notifications:", err);
+  }
+};
+
 export const useNotificationStore = create<NotificationState>((set) => ({
-  notifications: mockNotifications,
-  unreadCount: mockNotifications.filter((n) => !n.read).length,
-  addNotification: (title, body, type) =>
+  // Production ready: start completely empty for all users, no mock data
+  notifications: [],
+  unreadCount: 0,
+
+  addNotification: (title, body, type) => {
     set((state) => {
       const newNotif: AppNotification = {
-        id: Math.random().toString(),
+        id: `notif_${Date.now()}_${Math.floor(Math.random() * 10000)}`,
         title,
         body,
         type,
@@ -29,24 +42,68 @@ export const useNotificationStore = create<NotificationState>((set) => ({
         timestamp: "Just now",
       };
       const newNotifs = [newNotif, ...state.notifications];
+      persistNotifications(newNotifs);
       return {
         notifications: newNotifs,
         unreadCount: newNotifs.filter((n) => !n.read).length,
       };
-    }),
-  markAllAsRead: () =>
-    set((state) => ({
-      notifications: state.notifications.map((n) => ({ ...n, read: true })),
-      unreadCount: 0,
-    })),
-  markAsRead: (id) =>
+    });
+  },
+
+  markAllAsRead: () => {
     set((state) => {
-      const newNotifs = state.notifications.map((n) =>
+      const updated = state.notifications.map((n) => ({ ...n, read: true }));
+      persistNotifications(updated);
+      return {
+        notifications: updated,
+        unreadCount: 0,
+      };
+    });
+  },
+
+  markAsRead: (id) => {
+    set((state) => {
+      const updated = state.notifications.map((n) =>
         n.id === id ? { ...n, read: true } : n,
       );
+      persistNotifications(updated);
       return {
-        notifications: newNotifs,
-        unreadCount: newNotifs.filter((n) => !n.read).length,
+        notifications: updated,
+        unreadCount: updated.filter((n) => !n.read).length,
       };
-    }),
+    });
+  },
+
+  clearAll: () => {
+    persistNotifications([]);
+    set({ notifications: [], unreadCount: 0 });
+  },
+
+  loadPersisted: async () => {
+    try {
+      const raw = await localStorage.getItem(NOTIFICATIONS_STORAGE_KEY);
+      if (raw) {
+        const parsed: AppNotification[] = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          // Filter out legacy sample/dummy notification IDs if any exist
+          const real = parsed.filter(
+            (n) => n && n.id && !n.id.startsWith("notif-")
+          );
+          set({
+            notifications: real,
+            unreadCount: real.filter((n) => !n.read).length,
+          });
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to load notifications from storage:", err);
+    }
+    set({ notifications: [], unreadCount: 0 });
+  },
 }));
+
+// Hydrate saved notifications on application start
+useNotificationStore.getState().loadPersisted().catch(() => {});
+
+export default useNotificationStore;

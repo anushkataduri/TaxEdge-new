@@ -148,10 +148,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   loginWithPasscode: async (passcodeToUse?: string) => {
     const code = passcodeToUse !== undefined ? passcodeToUse : get().passcode;
-    const v = validatePasscode(code);
-    if (!v.valid) {
-      set({ error: v.error });
-      return { success: false, error: v.error };
+    const clean = code.replace(/\D/g, "");
+    if (!clean) {
+      set({ error: "Passcode is required" });
+      return { success: false, error: "Passcode is required" };
+    }
+    if (clean.length !== 6) {
+      set({ error: "Passcode must be exactly 6 digits" });
+      return { success: false, error: "Passcode must be exactly 6 digits" };
     }
 
     set({ isLoading: true, error: null });
@@ -233,7 +237,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   resetPasscodeAndProceed: async () => {
     const { mobileNumber, passcode, confirmPasscode, otp } = get();
-    const v = validatePasscodeMatch(passcode, confirmPasscode);
+    const v = validatePasscodeMatch(passcode, confirmPasscode, mobileNumber);
     if (!v.valid) {
       set({ error: v.error });
       return false;

@@ -510,12 +510,6 @@ export default function HomeScreen() {
                   {item.date}
                 </Text>
               </View>
-
-              {item.urgent && (
-                <View style={[styles.duePill, { backgroundColor: isDark ? colors.backgroundSelected : "#FDEBEB" }]}>
-                  <Text style={[styles.duePillText, { color: colors.error }]}>Due Soon</Text>
-                </View>
-              )}
             </TouchableOpacity>
           ))}
         </View>

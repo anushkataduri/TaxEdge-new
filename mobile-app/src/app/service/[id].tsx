@@ -5,7 +5,6 @@ import { useTheme } from "../../hooks/use-theme";
 import { Spacing } from "../../shared/theme";
 import { getServiceById } from "../../data/services";
 import { useApplicationStore } from "../../store/applicationStore";
-import { useNotificationStore } from "../../store/notificationStore";
 import { AppHeader } from "../../components/AppHeader";
 import { DynamicForm } from "../../components/DynamicForm";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -25,7 +24,6 @@ export default function ServiceDetailScreen() {
   const service = getServiceById(id || "");
 
   const createApplication = useApplicationStore((state) => state.createApplication);
-  const addNotification = useNotificationStore((state) => state.addNotification);
 
   // UI state for details tabs & form toggle
   const [activeTab, setActiveTab] = useState<ServiceTab>("Overview");
@@ -55,13 +53,6 @@ export default function ServiceDetailScreen() {
       formData,
       service.requiredDocs,
       paymentAmount
-    );
-
-    // Create notification
-    addNotification(
-      "Application Submitted",
-      `Your request for ${service.name} (${appId}) has been registered.`,
-      service.category.toLowerCase() as NotificationType
     );
 
     Alert.alert(

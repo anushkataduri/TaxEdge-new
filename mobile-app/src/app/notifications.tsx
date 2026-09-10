@@ -49,21 +49,31 @@ export default function NotificationsScreen() {
       <FlatList
         data={notifications}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={[styles.listContent, { paddingBottom: insets.bottom + Spacing.xl }]}
+        contentContainerStyle={[
+          styles.listContent,
+          notifications.length === 0 && { flexGrow: 1, justifyContent: "center" },
+          { paddingBottom: insets.bottom + Spacing.xl },
+        ]}
         showsVerticalScrollIndicator={false}
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Ionicons
-              name="notifications-off-outline"
-              size={48}
-              color={colors.textSecondary}
-              style={{ marginBottom: 12 }}
-            />
+            <View
+              style={[
+                styles.emptyIconContainer,
+                { backgroundColor: colors.backgroundElement },
+              ]}
+            >
+              <Ionicons
+                name="notifications-outline"
+                size={40}
+                color={colors.primary}
+              />
+            </View>
             <Text style={[styles.emptyText, { color: colors.text }]}>
-              No notifications
+              No Notifications Yet
             </Text>
             <Text style={[styles.emptySub, { color: colors.textSecondary }]}>
-              You are all caught up!
+              Notifications about your applications, payments, document requests, approvals, and reminders will appear here.
             </Text>
           </View>
         }

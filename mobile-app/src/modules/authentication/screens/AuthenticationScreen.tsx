@@ -306,6 +306,7 @@ export function AuthenticationScreen() {
                 onSubmit={handleResetPasscodeSubmit}
                 loading={isLoading}
                 error={error}
+                mobileNumber={mobileNumber}
               />
             )}
           </Animated.View>

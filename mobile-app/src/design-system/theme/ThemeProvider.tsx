@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useMemo } from "react";
-import { useColorScheme } from "react-native";
+import React, { createContext, useContext, useEffect, useMemo } from "react";
 import { Colors } from "../colors";
 import { Typography } from "../typography";
 import { Spacing } from "../spacing";
 import { Shadows } from "../shadows";
 import { BorderRadius, BorderWidth } from "../borders";
+import { useThemeStore, type ThemeMode } from "./themeStore";
 
 export interface Theme {
   colors: typeof Colors;
@@ -14,6 +14,9 @@ export interface Theme {
   borderRadius: typeof BorderRadius;
   borderWidth: typeof BorderWidth;
   isDark: boolean;
+  themeMode?: ThemeMode;
+  setTheme?: (mode: ThemeMode) => Promise<void>;
+  toggleTheme?: () => Promise<void>;
 }
 
 const defaultTheme: Theme = {
@@ -24,6 +27,7 @@ const defaultTheme: Theme = {
   borderRadius: BorderRadius,
   borderWidth: BorderWidth,
   isDark: false,
+  themeMode: "light",
 };
 
 const ThemeContext = createContext<Theme>(defaultTheme);
@@ -33,20 +37,46 @@ export interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const themeMode = useThemeStore((state) => state.theme);
+  const isDark = themeMode === "dark";
+  const setTheme = useThemeStore((state) => state.setTheme);
+  const toggleTheme = useThemeStore((state) => state.toggleTheme);
+  const initializeTheme = useThemeStore((state) => state.initializeTheme);
+
+  useEffect(() => {
+    initializeTheme();
+  }, [initializeTheme]);
+
+  const activeColors = useMemo(() => {
+    if (isDark) {
+      return {
+        ...Colors,
+        background: "#0F172A",
+        card: "#1E293B",
+        cardBorder: "#334155",
+        text: "#F8FAFC",
+        textSecondary: "#94A3B8",
+        textMuted: "#64748B",
+        border: "#334155",
+      };
+    }
+    return Colors;
+  }, [isDark]);
 
   const theme = useMemo<Theme>(() => {
     return {
-      colors: Colors,
+      colors: activeColors,
       typography: Typography,
       spacing: Spacing,
       shadows: Shadows,
       borderRadius: BorderRadius,
       borderWidth: BorderWidth,
       isDark,
+      themeMode,
+      setTheme,
+      toggleTheme,
     };
-  }, [isDark]);
+  }, [activeColors, isDark, themeMode, setTheme, toggleTheme]);
 
   return (
     <ThemeContext.Provider value={theme}>

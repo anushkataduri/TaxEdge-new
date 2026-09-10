@@ -22,6 +22,7 @@ import Svg, { Path } from "react-native-svg";
 import { useTheme } from "../../hooks/use-theme";
 import { BrandColors, Colors, BorderWidth, Spacing } from "../../shared/theme";
 import { useAuthStore } from "../../store/authStore";
+import { validatePasscode } from "../../modules/authentication/validation/authSchema";
 import { styles } from "../../styles/app/(auth)/create-profile.styles";
 import type { IconName } from "../../types/domain";
 
@@ -266,11 +267,24 @@ export default function CreateProfileScreen() {
         setProfileErrors((p) => ({ ...p, pincode: "" }));
       }
     } else if (key === "password" || key === "confirmPassword") {
-      if (key === "password" && form.confirmPassword) {
-        setProfileErrors((p) => ({
-          ...p,
-          confirmPassword: val === form.confirmPassword ? "" : "Passcodes do not match",
-        }));
+      const activeMobile = form.mobileNumber || storeMobileNumber;
+      if (key === "password") {
+        const clean = val.replace(/\D/g, "");
+        if (clean.length === 6) {
+          const v = validatePasscode(clean, activeMobile);
+          setProfileErrors((p) => ({
+            ...p,
+            password: v.valid ? "" : (v.error || "Invalid passcode"),
+          }));
+        } else {
+          setProfileErrors((p) => ({ ...p, password: "" }));
+        }
+        if (form.confirmPassword) {
+          setProfileErrors((p) => ({
+            ...p,
+            confirmPassword: val === form.confirmPassword ? "" : "Passcodes do not match",
+          }));
+        }
       } else if (key === "confirmPassword" && form.password) {
         setProfileErrors((p) => ({
           ...p,
@@ -328,7 +342,9 @@ export default function CreateProfileScreen() {
         return val ? "" : "Required";
       case "password": {
         if (!val) return "Required";
-        if (!/^\d{6}$/.test(val)) return "Passcode must be 6 digits";
+        if (val.length < 6) return "Passcode must be 6 digits";
+        const v = validatePasscode(val, form.mobileNumber || storeMobileNumber);
+        if (!v.valid) return v.error || "Invalid passcode";
         return "";
       }
       case "confirmPassword": {
@@ -409,7 +425,8 @@ export default function CreateProfileScreen() {
     const hasCity = Boolean(form.city.trim());
     const hasPincode = form.pincode.replace(/\D/g, "").length === 6;
     const hasState = Boolean(form.state);
-    const hasPasscode = /^\d{6}$/.test(form.password);
+    const hasPasscode =
+      validatePasscode(form.password, form.mobileNumber || storeMobileNumber).valid;
     const hasConfirmPasscode =
       form.confirmPassword === form.password && form.confirmPassword.length === 6;
 

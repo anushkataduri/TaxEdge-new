@@ -139,29 +139,6 @@ export default function ApplicationDetailScreen() {
 
 
   const currentCustomerName = useAuthStore.getState().customer?.name;
-  const applicantName =
-    app.formData?.businessName ||
-    app.formData?.tradeName ||
-    app.formData?.applicantName ||
-    currentCustomerName ||
-    "Verified Business";
-
-  const appliedDate = formatDisplayDate(app.createdAt);
-  const assignedCA = app.assignedExecutive ? `CA ${app.assignedExecutive}` : "CA Vikram";
-  const expectedDate = calculateExpectedDate(app.createdAt);
-  const uploadedDocs = app.documents.filter((d) => d.status === "Uploaded").length;
-
-  const totalAmount = app.paymentAmount;
-  const baseServiceFee = Math.round(app.paymentAmount / 1.18);
-  const gstAmount = app.paymentAmount - baseServiceFee;
-  const isPaid = app.paymentStatus === "Paid";
-
-  const timelineSteps: TimelineStep[] = (app.timeline && app.timeline.length > 0) ? app.timeline : [
-    { title: "Application Submitted", description: "Application filed online with documents", status: "completed", date: appliedDate },
-    { title: "Staff Verification", description: "CA reviewing invoices & reconciliation", status: "current", date: appliedDate },
-    { title: "Filing Submission", description: "Submission to GST portal", status: "pending" },
-    { title: "Filing Completed", description: "ARN generated and confirmation delivered", status: "pending" },
-
   const isGstAmendment = app.serviceId === "gst-amendment";
   const formData = (app.formData || {}) as Record<string, any>;
   const isNonCore =
@@ -175,12 +152,21 @@ export default function ApplicationDetailScreen() {
 
   const displayId = isGstAmendment && formData.arn ? String(formData.arn) : app.id;
   const displayName = isGstAmendment && formData.section ? `GST Amendment — ${formData.section}` : app.serviceName;
-  const applicantName = formData.applicantName || (isGstAmendment ? (formData.currentValues?.["Legal Business Name"] || "Registered Taxpayer") : "Akhil Kumar");
+  const applicantName =
+    formData.businessName ||
+    formData.tradeName ||
+    formData.applicantName ||
+    (isGstAmendment
+      ? (formData.currentValues?.["Legal Business Name"] || "Registered Taxpayer")
+      : (currentCustomerName || "Verified Business"));
   const appliedDate = formData.submissionDate || formatDisplayDate(app.createdAt);
-  const assignedCA = app.assignedExecutive || (isGstAmendment ? (isCore ? "GST Verification Officer" : "Auto-Verification Engine") : "CA Priya Sharma");
-  const expectedDate = isGstAmendment ? (isCore ? "15 Working Days (Officer Review)" : "Auto-Approved / 24 Hours") : "22 Aug 2026";
+  const assignedCA = app.assignedExecutive ? `CA ${app.assignedExecutive}` : (isGstAmendment ? (isCore ? "GST Verification Officer" : "Auto-Verification Engine") : "CA Vikram");
+  const expectedDate = isGstAmendment ? (isCore ? "15 Working Days (Officer Review)" : "Auto-Approved / 24 Hours") : calculateExpectedDate(app.createdAt);
   const uploadedDocs = app.documents.filter((d: any) => d.status === "Uploaded").length;
-  const totalAmount = app.paymentAmount + Math.round(app.paymentAmount * 0.18);
+  const totalAmount = app.paymentAmount;
+  const baseServiceFee = Math.round(app.paymentAmount / 1.18);
+  const gstAmount = app.paymentAmount - baseServiceFee;
+  const isPaid = app.paymentStatus === "Paid";
 
   const defaultGstAmendmentTimeline: TimelineStep[] = [
     { title: "Submitted", description: "Amendment request created", status: "completed", date: appliedDate },
@@ -188,7 +174,6 @@ export default function ApplicationDetailScreen() {
     { title: "Officer Review", description: isCore ? "Assessing officer reviewing the change" : "Assessing system reviewing the change", status: "pending" },
     { title: "Action Required", description: "If clarification is requested", status: "pending" },
     { title: "Approved / Updated", description: "Amended registration issued", status: "pending" },
-
   ];
 
   const timelineSteps: TimelineStep[] = (app.timeline && app.timeline.length > 0)
@@ -197,9 +182,9 @@ export default function ApplicationDetailScreen() {
     ? defaultGstAmendmentTimeline
     : [
         { title: "Application Submitted", description: "Application filed online with documents", status: "completed", date: appliedDate },
-        { title: "Document Verification", description: "Review of premises and identity documents", status: "current", date: "16 Aug 2026" },
-        { title: "TRN Generation", description: "Temporary Reference Number creation", status: "pending" },
-        { title: "GST Certificate Issuance", description: "Final GSTIN approval from Department", status: "pending" },
+        { title: "Staff Verification", description: "CA reviewing invoices & reconciliation", status: "current", date: appliedDate },
+        { title: "Filing Submission", description: "Submission to GST portal", status: "pending" },
+        { title: "Filing Completed", description: "ARN generated and confirmation delivered", status: "pending" },
       ];
 
   const handleDocumentUpload = async (docName: string) => {
@@ -212,23 +197,6 @@ export default function ApplicationDetailScreen() {
       uploadDocument(app.id, docName, `file://uploaded/${docName}.pdf`);
     }
   };
-
-  const headerInfo = {
-
-    OVERVIEW: { nav: "Application Details", title: app.serviceName, sub: `${applicantName} • ${appliedDate}` },
-    STATUS: { nav: "Application Status", title: app.serviceId === "gst-filing" ? "Staff Verification" : "Document Verification", sub: `Assigned CA: ${assignedCA} • Target: ${expectedDate}` },
-    DOCUMENTS: { nav: "Required Documents", title: "Document Uploads", sub: `${uploadedDocs} of ${app.documents.length} documents uploaded` },
-    PAYMENTS: { nav: "Payment Details", title: "Invoice & Fees", sub: `Total: ₹${totalAmount.toLocaleString()} • Status: ${app.paymentStatus}` },
-  }[activeTab];
-
-  const overviewRows = [
-    { key: "Customer / Entity", val: applicantName },
-    { key: "Service", val: app.serviceName },
-    { key: "Application ID", val: app.id },
-    { key: "Applied Date", val: appliedDate },
-    { key: "Assigned CA", val: assignedCA },
-    { key: "Expected Completion", val: expectedDate },
-  ];
 
   // GST Return Filing specific metadata card
   const filingRows = app.formData?.gstin ? [
@@ -268,15 +236,7 @@ export default function ApplicationDetailScreen() {
     ...(app.formData.pan ? [{ key: "PAN", val: app.formData.pan }] : []),
   ] : [];
 
-  const paymentRows = [
-    { key: "Service Fee", val: `₹${baseServiceFee.toLocaleString()}` },
-    { key: "Government Fees", val: "₹0 (Included)" },
-    { key: "Platform GST (18%)", val: `₹${gstAmount.toLocaleString()}` },
-    ...(app.formData?.transactionId ? [{ key: "Transaction ID", val: app.formData.transactionId }] : []),
-    ...(app.formData?.paymentMethod ? [{ key: "Payment Method", val: app.formData.paymentMethod }] : []),
-    { key: "Payment Date", val: appliedDate },
-  ];
-
+  const headerInfo = {
     OVERVIEW: {
       nav: isGstAmendment ? "Amendment Details" : "Application Details",
       title: displayName,
@@ -284,11 +244,11 @@ export default function ApplicationDetailScreen() {
     },
     STATUS: {
       nav: isGstAmendment ? "Amendment Status" : "Application Status",
-      title: isGstAmendment ? (isCore ? "Officer Verification" : "System Verification") : "Document Verification",
+      title: isGstAmendment ? (isCore ? "Officer Verification" : "System Verification") : (app.serviceId === "gst-filing" ? "Staff Verification" : "Document Verification"),
       sub: isGstAmendment ? `Type: ${isCore ? "Core (Officer Approval)" : "Non-Core (Auto)"} • Target: ${expectedDate}` : `Assigned CA: ${assignedCA} • Target: ${expectedDate}`,
     },
     DOCUMENTS: {
-      nav: "Supporting Documents",
+      nav: isGstAmendment ? "Supporting Documents" : (app.serviceId === "gst-filing" ? "Filing Documents" : "Required Documents"),
       title: "Document Uploads",
       sub: isGstAmendment && formData.document ? "Supporting proof attached" : `${uploadedDocs} of ${app.documents.length} documents uploaded`,
     },
@@ -326,9 +286,12 @@ export default function ApplicationDetailScreen() {
         { key: "GST (18%)", val: "₹0" },
       ]
     : [
-        { key: "Service Fee", val: `₹${app.paymentAmount.toLocaleString()}` },
+        { key: "Service Fee", val: `₹${baseServiceFee.toLocaleString()}` },
         { key: "Government Fees", val: "₹0 (Included)" },
-        { key: "GST (18%)", val: `₹${Math.round(app.paymentAmount * 0.18).toLocaleString()}` },
+        { key: "Platform GST (18%)", val: `₹${gstAmount.toLocaleString()}` },
+        ...(app.formData?.transactionId ? [{ key: "Transaction ID", val: app.formData.transactionId }] : []),
+        ...(app.formData?.paymentMethod ? [{ key: "Payment Method", val: app.formData.paymentMethod }] : []),
+        { key: "Payment Date", val: appliedDate },
       ];
 
 
@@ -373,12 +336,6 @@ export default function ApplicationDetailScreen() {
         {/* TAB 1: OVERVIEW */}
         {activeTab === "OVERVIEW" && (
           <>
-
-            {/* General Application Info */}
-            <View style={styles.card}>
-              <View style={styles.cardHeaderRow}>
-                <Ionicons name="information-circle-outline" size={20} color="#083B75" />
-                <Text style={styles.cardHeaderTitle}>Application Info</Text>
 
             {isGstAmendment && (
               <View style={styles.card}>
@@ -431,8 +388,6 @@ export default function ApplicationDetailScreen() {
                       <Text style={styles.infoKey}>{r.key}</Text>
                       <Text style={styles.infoVal}>{r.val}</Text>
                     </View>
-
-                    <View style={styles.infoRow}><Text style={styles.infoKey}>{r.key}</Text><Text style={styles.infoVal}>{r.val}</Text></View>
 
                   </React.Fragment>
                 ))}
@@ -600,9 +555,7 @@ export default function ApplicationDetailScreen() {
             <View style={styles.cardHeaderRow}>
               <Ionicons name="folder-open-outline" size={20} color="#083B75" />
 
-              <Text style={styles.cardHeaderTitle}>Filing Documents</Text>
-
-              <Text style={styles.cardHeaderTitle}>{isGstAmendment ? "Supporting Documents" : "Required Documents"}</Text>
+              <Text style={styles.cardHeaderTitle}>{isGstAmendment ? "Supporting Documents" : (app.serviceId === "gst-filing" ? "Filing Documents" : "Required Documents")}</Text>
 
             </View>
             <View style={{ gap: 12 }}>
@@ -676,26 +629,15 @@ export default function ApplicationDetailScreen() {
                 </React.Fragment>
               ))}
               <View style={styles.infoRow}>
-
-                <Text style={[styles.infoKey, { fontWeight: "700", color: "#0A2346" }]}>Total Paid</Text>
-                <Text style={[styles.infoVal, { color: "#EA580C", fontSize: 16 }]}>₹{totalAmount.toLocaleString()}</Text>
-
                 <Text style={[styles.infoKey, { fontWeight: "700", color: "#0A2346" }]}>Total Amount</Text>
                 <Text style={[styles.infoVal, { color: "#EA580C", fontSize: 16 }]}>{isGstAmendment ? "₹0 (Free)" : `₹${totalAmount.toLocaleString()}`}</Text>
-
               </View>
               <View style={styles.infoDivider} />
               <View style={styles.infoRow}>
                 <Text style={styles.infoKey}>Payment Status</Text>
-
-                <View style={[styles.statusPillSmall, { backgroundColor: isPaid ? "#ECFDF5" : "#FFF1E8" }]}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: isPaid ? "#059669" : "#EA580C" }}>
-                    {app.paymentStatus}
-
-                <View style={[styles.statusPillSmall, { backgroundColor: (isGstAmendment || app.paymentStatus === "Paid") ? "#E0F2FE" : "#FFF1E8" }]}>
-                  <Text style={{ fontSize: 12, fontWeight: "700", color: (isGstAmendment || app.paymentStatus === "Paid") ? "#083B75" : "#EA580C" }}>
+                <View style={[styles.statusPillSmall, { backgroundColor: (isGstAmendment || isPaid) ? "#ECFDF5" : "#FFF1E8" }]}>
+                  <Text style={{ fontSize: 12, fontWeight: "700", color: (isGstAmendment || isPaid) ? "#059669" : "#EA580C" }}>
                     {isGstAmendment ? "Complimentary" : app.paymentStatus}
-
                   </Text>
                 </View>
               </View>

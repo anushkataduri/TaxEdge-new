@@ -1,5 +1,4 @@
 import { useApplicationStore } from "../../../store/applicationStore";
-import { useNotificationStore } from "../../../store/notificationStore";
 import { ComplianceFormData } from "../validation/complianceSchema";
 import { generateComplianceRefId, getTodayFormatted } from "../utils/gstValidation";
 
@@ -122,13 +121,6 @@ export async function submitComplianceRequest(
       },
       payload.documents.map((d) => d.name),
       0
-    );
-
-    // Add notification
-    useNotificationStore.getState().addNotification(
-      "GST Compliance Request Submitted",
-      `Your request (${data.requestType}) for ${data.gstin} has been submitted. Reference: ${referenceId}`,
-      "gst"
     );
 
     return {

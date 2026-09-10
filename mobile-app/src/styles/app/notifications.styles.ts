@@ -60,16 +60,30 @@ export const styles = StyleSheet.create({
     lineHeight: 18,
   },
   emptyContainer: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 100,
+    paddingVertical: 80,
+    paddingHorizontal: Spacing.xl,
+  },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: Spacing.lg,
   },
   emptyText: {
     fontSize: Typography.fontSize.lg,
     fontWeight: Typography.fontWeight.bold,
+    textAlign: "center",
+    marginBottom: Spacing.xs,
   },
   emptySub: {
-    fontSize: Typography.fontSize.sm + 1,
-    marginTop: 6,
+    fontSize: Typography.fontSize.sm,
+    textAlign: "center",
+    lineHeight: 22,
+    maxWidth: 320,
   },
 });

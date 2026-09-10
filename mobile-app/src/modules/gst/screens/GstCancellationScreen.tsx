@@ -22,7 +22,6 @@ import { useUniversalDraftGuard } from "../../../shared/hooks/useUniversalDraftG
 import { GstValidators } from "../utils/gstValidators";
 import { styles } from "./GstCancellationScreen.styles";
 import { useApplicationStore } from "../../../store/applicationStore";
-import { useNotificationStore } from "../../../store/notificationStore";
 
 const CANCELLATION_REASONS = [
   "Discontinuance / Closure of Business",
@@ -149,12 +148,6 @@ export default function GstCancellationScreen() {
         },
         ["Last GSTR-3B Filing Proof", "Closing Stock Valuation"],
         1999
-      );
-
-      useNotificationStore.getState().addNotification(
-        "Cancellation Request Filed",
-        `Your GST Cancellation application for ${gstin} (REG-16) has been submitted. App ID: ${appId}.`,
-        "gst"
       );
     }, 800);
   };

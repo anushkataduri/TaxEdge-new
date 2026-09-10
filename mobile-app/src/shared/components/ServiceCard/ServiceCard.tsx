@@ -118,36 +118,46 @@ export const ServiceCard: React.FC<ServiceCardProps> = ({ item, onPress }) => {
           </Text>
         </View>
 
-        <View style={styles.rightCol}>
-          {item.badgeText && (
-            <View
-              style={[
-                styles.badgePill,
-                item.badgeBg ? { backgroundColor: item.badgeBg } : null,
-              ]}
-            >
-              <Text
+        {item.badgeText || item.rateText ? (
+          <View style={styles.rightCol}>
+            {item.badgeText && (
+              <View
                 style={[
-                  styles.badgeText,
-                  item.badgeColor ? { color: item.badgeColor } : null,
+                  styles.badgePill,
+                  item.badgeBg ? { backgroundColor: item.badgeBg } : null,
                 ]}
               >
-                {item.badgeText}
-              </Text>
-            </View>
-          )}
+                <Text
+                  style={[
+                    styles.badgeText,
+                    item.badgeColor ? { color: item.badgeColor } : null,
+                  ]}
+                >
+                  {item.badgeText}
+                </Text>
+              </View>
+            )}
 
-          {item.rateText && (
-            <Text style={styles.rateText}>{item.rateText}</Text>
-          )}
+            {item.rateText && (
+              <Text style={styles.rateText}>{item.rateText}</Text>
+            )}
 
-          <Ionicons
-            name="chevron-forward"
-            size={15}
-            color="#94A3B8"
-            style={styles.chevron}
-          />
-        </View>
+            <Ionicons
+              name="chevron-forward"
+              size={18}
+              color="#94A3B8"
+              style={styles.chevron}
+            />
+          </View>
+        ) : (
+          <View style={styles.chevronOnlyWrapper}>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color="#94A3B8"
+            />
+          </View>
+        )}
       </View>
     </ScalePressable>
   );
@@ -160,7 +170,7 @@ const styles = StyleSheet.create({
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
-    paddingVertical: 15,
+    paddingVertical: 16,
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
@@ -220,9 +230,10 @@ const styles = StyleSheet.create({
   detailsCol: {
     flex: 1,
     justifyContent: "center",
+    paddingRight: 10,
   },
   titleText: {
-    fontSize: 16.5,
+    fontSize: 16,
     fontWeight: "700",
     color: "#1E293B",
     letterSpacing: -0.2,
@@ -231,7 +242,7 @@ const styles = StyleSheet.create({
   descText: {
     fontSize: 13,
     color: "#64748B",
-    lineHeight: 17.5,
+    lineHeight: 18,
     marginTop: 3,
     fontWeight: "400",
     fontFamily: Platform.select({ ios: "System", android: "sans-serif" }),
@@ -241,6 +252,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     height: 48,
     marginLeft: 8,
+  },
+  chevronOnlyWrapper: {
+    width: 28,
+    height: 28,
+    justifyContent: "center",
+    alignItems: "center",
   },
   badgePill: {
     backgroundColor: "#FEF0E6",

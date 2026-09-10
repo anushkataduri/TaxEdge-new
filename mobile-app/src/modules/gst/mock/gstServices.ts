@@ -9,9 +9,6 @@ export const GST_SERVICES: GstServiceItem[] = [
     iconType: "registration",
     iconColor: "#3B82F6",
     iconBg: "#EDF9F3",
-    badgeText: "Start",
-    badgeColor: "#FF7A00",
-    badgeBg: "#FEF0E6",
     route: "/service/gst-registration",
   },
   {
@@ -22,9 +19,6 @@ export const GST_SERVICES: GstServiceItem[] = [
     iconType: "filing",
     iconColor: "#3B82F6",
     iconBg: "#EDF9F3",
-    badgeText: "Start",
-    badgeColor: "#FF7A00",
-    badgeBg: "#FEF0E6",
     route: "/service/gst-filing",
   },
   {
@@ -35,9 +29,6 @@ export const GST_SERVICES: GstServiceItem[] = [
     iconType: "compliance",
     iconColor: "#10B981",
     iconBg: "#EDF9F3",
-    badgeText: "Start",
-    badgeColor: "#FF7A00",
-    badgeBg: "#FEF0E6",
     route: "/service/gst-compliance",
   },
   {
@@ -48,9 +39,6 @@ export const GST_SERVICES: GstServiceItem[] = [
     iconType: "amendment",
     iconColor: "#F97316",
     iconBg: "#EDF9F3",
-    badgeText: "Start",
-    badgeColor: "#FF7A00",
-    badgeBg: "#FEF0E6",
     route: "/service/gst-amendment",
   },
   {
@@ -61,9 +49,6 @@ export const GST_SERVICES: GstServiceItem[] = [
     iconType: "cancellation",
     iconColor: "#EF4444",
     iconBg: "#EDF9F3",
-    badgeText: "Start",
-    badgeColor: "#FF7A00",
-    badgeBg: "#FEF0E6",
     route: "/service/gst-cancellation",
   },
   {
@@ -74,9 +59,6 @@ export const GST_SERVICES: GstServiceItem[] = [
     iconType: "certificate",
     iconColor: "#F59E0B",
     iconBg: "#EDF9F3",
-    badgeText: "Start",
-    badgeColor: "#FF7A00",
-    badgeBg: "#FEF0E6",
     route: "/service/gst-certificate",
   },
 ];

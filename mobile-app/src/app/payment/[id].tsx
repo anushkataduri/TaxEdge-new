@@ -14,7 +14,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "../../hooks/use-theme";
 import { useApplicationStore } from "../../store/applicationStore";
-import { useNotificationStore } from "../../store/notificationStore";
 import { useAuthStore } from "../../store/authStore";
 import { AppHeader } from "../../components/AppHeader";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -86,7 +85,6 @@ export default function PaymentScreen() {
 
   const applications = useApplicationStore((state) => state.applications);
   const payApplication = useApplicationStore((state) => state.payApplication);
-  const addNotification = useNotificationStore((state) => state.addNotification);
   const customer = useAuthStore((state) => state.customer);
 
   const app = applications.find((a) => a.id === id);
@@ -142,11 +140,6 @@ export default function PaymentScreen() {
     setProcessing(true);
     setTimeout(() => {
       payApplication(app.id);
-      addNotification(
-        "Payment Successful",
-        `Received ${rupees(total)} for ${app.serviceName} (${app.id}).`,
-        "payment",
-      );
       setProcessing(false);
       Alert.alert(
         "Payment Successful",

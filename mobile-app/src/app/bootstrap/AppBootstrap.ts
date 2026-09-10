@@ -4,6 +4,7 @@ import { apiClient } from "../../core/api/apiClient";
 import { tokenManager } from "../../core/authentication/tokenManager";
 import { sessionManager } from "../../core/authentication/sessionManager";
 import { logger } from "../../core/logging/logger";
+import { useThemeStore } from "../../design-system/theme/themeStore";
 
 export class AppBootstrap {
   private static isInitialized = false;
@@ -12,6 +13,10 @@ export class AppBootstrap {
     if (this.isInitialized) return;
 
     logger.info("Starting TaxEdge App Bootstrap...");
+
+    // Initialize saved user theme preference (defaults to light mode)
+    await useThemeStore.getState().initializeTheme().catch(() => {});
+
 
     // Register core dependencies
     container.register("apiClient", apiClient);

@@ -123,7 +123,20 @@ const SECTIONS: MenuSection[] = [
     ],
   },
   {
+    title: "Preferences",
+    rows: [
+      {
+        label: "Appearance & Settings",
+        icon: "color-palette",
+        tint: "#FF7A00",
+        tintBg: "#FEF0E6",
+        action: { kind: "route", href: "/settings" },
+      },
+    ],
+  },
+  {
     title: "Security",
+
     rows: [
       {
         label: "Change Password",

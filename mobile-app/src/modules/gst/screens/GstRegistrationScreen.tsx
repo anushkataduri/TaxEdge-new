@@ -21,7 +21,6 @@ import {
 import { GstReviewStep } from "../components/GstReviewStep";
 import { GstApplicationStatusStep } from "../components/GstApplicationStatusStep";
 import { useApplicationStore } from "../../../store/applicationStore";
-import { useNotificationStore } from "../../../store/notificationStore";
 import { UniversalDraftModal } from "../../../shared/components/UniversalDraftModal";
 import { useUniversalDraftGuard } from "../../../shared/hooks/useUniversalDraftGuard";
 import { styles } from "./GstRegistrationScreen.styles";
@@ -41,7 +40,6 @@ export const GstRegistrationScreen: React.FC = () => {
   const saveGstDraft = useApplicationStore((state) => state.saveGstDraft);
   const clearGstDraft = useApplicationStore((state) => state.clearGstDraft);
   const createApplication = useApplicationStore((state) => state.createApplication);
-  const addNotification = useNotificationStore((state) => state.addNotification);
 
   // Form State
   const [businessData, setBusinessData] = useState<GstBusinessFormData>({
@@ -273,7 +271,7 @@ export const GstRegistrationScreen: React.FC = () => {
           ...businessData,
           applicantName: businessData.businessName || "Your Business",
           appliedDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
-        },
+        } as any,
         documents.map((d) => d.name),
         1499
       );
@@ -281,12 +279,6 @@ export const GstRegistrationScreen: React.FC = () => {
       setCreatedAppId(appId);
       markSubmitted();
       clearGstDraft();
-
-      addNotification(
-        "GST Application Submitted",
-        `Your GST Registration (ID: ${appId}) has been successfully submitted and is under verification.`,
-        "gst"
-      );
 
       setScreenIndex(3);
     }

@@ -1,8 +1,8 @@
-import { useColorScheme } from "./useColorScheme";
 import { Colors } from "../constants/theme";
+import { useThemeStore } from "../../design-system/theme/themeStore";
 
 export function useTheme() {
-  const scheme = useColorScheme();
+  const scheme = useThemeStore((state) => state.theme);
   const colors = Colors[scheme];
 
   return {
@@ -13,3 +13,4 @@ export function useTheme() {
 }
 
 export default useTheme;
+

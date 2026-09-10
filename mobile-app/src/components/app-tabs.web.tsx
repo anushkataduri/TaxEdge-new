@@ -2,14 +2,15 @@ import { Tabs, TabList, TabTrigger, TabSlot } from "expo-router/ui";
 import type { Href } from "expo-router";
 import { SymbolView } from "expo-symbols";
 import type { ReactNode } from "react";
+import { useTheme } from "../hooks/use-theme";
 import {
   Pressable,
-  useColorScheme,
   View,
   StyleSheet,
   type PressableProps,
   type ViewProps,
 } from "react-native";
+
 
 import { ExternalLink } from "./external-link";
 import { ThemedText } from "./themed-text";
@@ -71,9 +72,8 @@ export interface CustomTabListProps extends Omit<ViewProps, "style"> {
 }
 
 export function CustomTabList(props: CustomTabListProps) {
-  const scheme = useColorScheme();
-  const theme: ThemeName = scheme === "dark" ? "dark" : "light";
-  const colors = Colors[theme];
+  const colors = useTheme();
+
 
   return (
     <View {...props} style={styles.tabListContainer}>
