@@ -19,3 +19,4 @@ export * from "./DocumentCropModal";
 export * from "./UniversalDraftModal";
 export * from "./CompleteProfileModal";
 export * from "./BiometricPromptModal";
+export * from "./ServerConfigModal";

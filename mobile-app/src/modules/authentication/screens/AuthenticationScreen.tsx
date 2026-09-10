@@ -28,6 +28,7 @@ import {
 import { authStorage } from "../services/authStorage";
 import { biometricService } from "../services/biometricService";
 import { BiometricPromptModal } from "../../../shared/components/BiometricPromptModal";
+import { ServerConfigModal } from "../../../shared/components/ServerConfigModal";
 
 const HEADER_OFFSET = Spacing.md;
 const FOOTER_OFFSET = Spacing.base;
@@ -72,6 +73,7 @@ export function AuthenticationScreen() {
 
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [biometricType, setBiometricType] = useState("Fingerprint");
+  const [showServerModal, setShowServerModal] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -239,8 +241,13 @@ export function AuthenticationScreen() {
         )}
 
         <View style={styles.wrapper}>
-          {/* Header & Branding */}
-          <View style={styles.header}>
+          {/* Header & Branding (Long-press to configure server IP) */}
+          <TouchableOpacity
+            activeOpacity={0.85}
+            onLongPress={() => setShowServerModal(true)}
+            delayLongPress={500}
+            style={styles.header}
+          >
             <Image
               source={require("../../../../assets/images/icon.png")}
               style={styles.logo}
@@ -248,7 +255,7 @@ export function AuthenticationScreen() {
             />
             <Text style={[styles.brandTitle, { color: colors.primaryDark }]}>TAXEDGE</Text>
             <Text style={[styles.brandSub, { color: colors.textSecondary }]}>FIN SOLUTIONS</Text>
-          </View>
+          </TouchableOpacity>
 
           {/* Welcome Title - Only shown on initial Mobile Number Login Screen */}
           {authFlowState === "ENTER_MOBILE" && (
@@ -262,7 +269,29 @@ export function AuthenticationScreen() {
 
           {/* Error Banner */}
           {authFlowState !== "RESET_PASSCODE" && (
-            <ErrorBanner error={error} onDismiss={() => setError(null)} />
+            <>
+              <ErrorBanner error={error} onDismiss={() => setError(null)} />
+              {error && (error.includes("server") || error.includes("connect") || error.includes("Network")) && (
+                <TouchableOpacity
+                  onPress={() => setShowServerModal(true)}
+                  style={{
+                    alignSelf: "center",
+                    marginBottom: 12,
+                    paddingVertical: 6,
+                    paddingHorizontal: 12,
+                    backgroundColor: "#EFF6FF",
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: "#BFDBFE",
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <Text style={{ fontSize: 12, fontWeight: "600", color: BrandColors.PRIMARY_BLUE }}>
+                    ⚙️ Tap to change Server IP / URL
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </>
           )}
 
           {/* Form Body with Animated Transition */}
@@ -382,6 +411,12 @@ export function AuthenticationScreen() {
         biometricType={biometricType}
         onEnable={handleEnableBiometric}
         onNotNow={handleNotNowBiometric}
+      />
+
+      {/* Server Configuration Modal */}
+      <ServerConfigModal
+        visible={showServerModal}
+        onClose={() => setShowServerModal(false)}
       />
     </KeyboardAvoidingView>
   );

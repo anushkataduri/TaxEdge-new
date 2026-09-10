@@ -9,7 +9,7 @@ export interface EnvironmentConfig {
 export const Environment: EnvironmentConfig = {
 
 
-  apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://10.100.161.246:8088",
+  apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://192.168.88.49:8088",
 
   environment: (process.env.NODE_ENV as any) || "development",
   enableAnalytics: process.env.NODE_ENV === "production",

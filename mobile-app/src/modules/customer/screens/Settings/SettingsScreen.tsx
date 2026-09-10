@@ -16,6 +16,8 @@ import { useTheme } from "../../../../hooks/use-theme";
 import { useThemeStore, type ThemeMode } from "../../../../design-system/theme/themeStore";
 import { useAuthStore } from "../../../authentication/store/authStore";
 import { biometricService } from "../../../authentication/services/biometricService";
+import { apiClient } from "../../../../core/api/apiClient";
+import { ServerConfigModal } from "../../../../shared/components";
 
 export function SettingsScreen() {
   const router = useRouter();
@@ -26,6 +28,8 @@ export function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [biometricEnabled, setBiometricEnabled] = useState(false);
   const [biometricLabel, setBiometricLabel] = useState("Fingerprint / Face ID");
+  const [showServerModal, setShowServerModal] = useState(false);
+  const [currentServerUrl, setCurrentServerUrl] = useState(apiClient.getBaseUrl());
 
   const isBiometricEnabledStore = useAuthStore((state) => state.isBiometricEnabled);
   const setBiometricEnabledStore = useAuthStore((state) => state.setBiometricEnabled);
@@ -351,13 +355,30 @@ export function SettingsScreen() {
           </View>
         </View>
 
-        {/* ---------- App Information ---------- */}
-        <View style={styles.appInfoContainer}>
+        {/* ---------- App Information (Tap to configure backend server) ---------- */}
+        <TouchableOpacity
+          style={styles.appInfoContainer}
+          onPress={() => {
+            setCurrentServerUrl(apiClient.getBaseUrl());
+            setShowServerModal(true);
+          }}
+          activeOpacity={0.7}
+        >
           <Text style={[styles.appInfoText, { color: colors.textSecondary }]}>
             TaxEdge Fin Solutions • v1.0.0
           </Text>
-        </View>
+          <Text style={{ fontSize: 11, color: colors.primary, marginTop: 4, fontWeight: "600" }}>
+            ⚙️ Backend: {currentServerUrl}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* Server Configuration Modal */}
+      <ServerConfigModal
+        visible={showServerModal}
+        onClose={() => setShowServerModal(false)}
+        onSaved={(newUrl) => setCurrentServerUrl(newUrl)}
+      />
     </ScreenLayout>
   );
 }
