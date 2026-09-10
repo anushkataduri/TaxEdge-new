@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -25,6 +25,9 @@ import {
   GoogleLoginSection,
   ErrorBanner,
 } from "../components";
+import { authStorage } from "../services/authStorage";
+import { biometricService } from "../services/biometricService";
+import { BiometricPromptModal } from "../../../shared/components/BiometricPromptModal";
 
 const HEADER_OFFSET = Spacing.md;
 const FOOTER_OFFSET = Spacing.base;
@@ -63,17 +66,22 @@ export function AuthenticationScreen() {
     resendOtp,
     changeNumber,
     setAuthFlowState,
+    isBiometricEnabled,
+    syncFromDevAuth,
   } = useAuthStore();
+
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [biometricType, setBiometricType] = useState("Fingerprint");
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
 
-  // If already authenticated, redirect to home
+  // If already authenticated, redirect to home (unless biometric opt-in modal is open)
   useEffect(() => {
-    if (isLoggedIn) {
+    if (isLoggedIn && !showBiometricModal) {
       router.replace("/(main)/home" as any);
     }
-  }, [isLoggedIn]);
+  }, [isLoggedIn, showBiometricModal]);
 
   // Timer interval
   useEffect(() => {
@@ -114,15 +122,67 @@ export function AuthenticationScreen() {
   const handleOtpVerify = async (code?: string) => {
     const res = await verifyOtp(code);
     if (res.success && !res.isExistingUser) {
-      // New user -> navigate to original TaxEdge registration form
-      router.push("/(auth)/createprofile" as any);
+      // First-time user -> open Dashboard directly without profile completion
+      router.replace("/(main)/home" as any);
     }
   };
 
   const handleLoginSubmit = async () => {
     const res = await loginWithPasscode();
     if (res.success) {
+      try {
+        const hasHardware = await biometricService.checkHardwareSupport();
+        const isEnrolled = await biometricService.checkEnrollment();
+        const isAlreadyEnabled = await biometricService.isBiometricEnabled();
+
+        if (hasHardware && isEnrolled && !isAlreadyEnabled) {
+          const typeLabel = await biometricService.getBiometricTypeLabel();
+          setBiometricType(typeLabel);
+          setShowBiometricModal(true);
+          return;
+        }
+      } catch {}
+
       router.replace("/(main)/home" as any);
+    }
+  };
+
+  const handleEnableBiometric = async () => {
+    setShowBiometricModal(false);
+    try {
+      const authRes = await biometricService.authenticate();
+      if (authRes.success) {
+        await useAuthStore.getState().setBiometricEnabled(true);
+      }
+    } catch {}
+    router.replace("/(main)/home" as any);
+  };
+
+  const handleNotNowBiometric = () => {
+    setShowBiometricModal(false);
+    router.replace("/(main)/home" as any);
+  };
+
+  const handleBiometricLogin = async () => {
+    try {
+      const typeLabel = await biometricService.getBiometricTypeLabel();
+      const authRes = await biometricService.authenticate(`Authenticate with ${typeLabel}`);
+      if (authRes.success) {
+        const activeMobile = mobileNumber || authStorage.getSession().activeMobile;
+        if (activeMobile) {
+          authStorage.saveSession({
+            isLoggedIn: true,
+            activeMobile: activeMobile,
+            lastLoginAt: new Date().toISOString(),
+          });
+          syncFromDevAuth();
+          router.replace("/(main)/home" as any);
+        }
+      } else if (authRes.error && authRes.error !== "Authentication cancelled") {
+        setError(authRes.error);
+      }
+    } catch (e: any) {
+      setError(e?.message || "Biometric authentication failed");
     }
   };
 
@@ -264,6 +324,9 @@ export function AuthenticationScreen() {
                   onLogin={handleLoginSubmit}
                   onForgotPasscode={handleForgotPasscode}
                   loading={isLoading}
+                  onBiometricLogin={handleBiometricLogin}
+                  isBiometricEnabled={isBiometricEnabled}
+                  biometricTypeLabel={biometricType}
                 />
 
                 <GoogleLoginSection disabled={isLoading} />
@@ -312,6 +375,14 @@ export function AuthenticationScreen() {
           </Animated.View>
         </View>
       </ScrollView>
+
+      {/* Biometric Enable Prompt Modal */}
+      <BiometricPromptModal
+        visible={showBiometricModal}
+        biometricType={biometricType}
+        onEnable={handleEnableBiometric}
+        onNotNow={handleNotNowBiometric}
+      />
     </KeyboardAvoidingView>
   );
 }

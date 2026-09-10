@@ -3,12 +3,14 @@ import { View } from "react-native";
 import { useRouter } from "expo-router";
 import { ServiceHeader } from "../../../shared/components/ServiceHeader";
 import { ServiceList } from "../../../shared/components/ServiceList";
+import { useServiceAccessGuard } from "../../../shared/hooks/useServiceAccessGuard";
 import { loansService } from "../services/LoansService";
 import { LoanServiceItem } from "../types/loans.types";
 import { styles } from "./LoansScreen.styles";
 
 export const LoansScreen: React.FC = () => {
   const router = useRouter();
+  const { accessService } = useServiceAccessGuard();
   const [services, setServices] = useState<LoanServiceItem[]>([]);
 
   useEffect(() => {
@@ -17,7 +19,7 @@ export const LoansScreen: React.FC = () => {
 
   const handleCardPress = (item: LoanServiceItem) => {
     if (item.route) {
-      router.push(item.route as any);
+      accessService(item.route);
     }
   };
 

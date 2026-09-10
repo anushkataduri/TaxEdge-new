@@ -21,6 +21,7 @@ import { useColorScheme } from "../../../hooks/use-color-scheme";
 import { useAuthStore } from "../../authentication/store/authStore";
 import { useApplicationStore } from "../../../store/applicationStore";
 import { useNotificationStore } from "../../../store/notificationStore";
+import { useServiceAccessGuard } from "../../../shared/hooks/useServiceAccessGuard";
 import { SavingsJarAnimation } from "../../../shared/components/Loader/SavingsJarAnimation";
 import { SERVICE_CATALOGUE } from "../../../data/catalogue";
 import { SCREEN_BOTTOM_PADDING } from "../../../shared/components/ScreenLayout/ScreenLayout";
@@ -84,6 +85,7 @@ export function HomeScreen() {
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
   const router = useRouter();
+  const { accessService } = useServiceAccessGuard();
   const insets = useSafeAreaInsets();
 
   const [bannerPage, setBannerPage] = useState(0);
@@ -177,7 +179,7 @@ export function HomeScreen() {
   ) => {
     setMoreOpen(false);
     if (item.serviceId) {
-      router.push(`/service/${item.serviceId}` as any);
+      accessService(`/service/${item.serviceId}`);
     } else {
       handleExploreCategory(categoryId);
     }
@@ -190,7 +192,13 @@ export function HomeScreen() {
       return;
     }
     setMoreOpen(false);
-    if (tile.route) router.push(tile.route);
+    if (tile.route) {
+      if (tile.id === "tds" || tile.id === "insurance") {
+        accessService(tile.route);
+      } else {
+        router.push(tile.route);
+      }
+    }
   };
 
   const catalogueQuery = moreQuery.trim().toLowerCase();
@@ -503,7 +511,7 @@ export function HomeScreen() {
             <TouchableOpacity
               key={item.id}
               activeOpacity={0.75}
-              onPress={() => router.push(item.route)}
+              onPress={() => accessService(item.route)}
               style={[
                 styles.deadlineRow,
                 index < UPCOMING_DEADLINES.length - 1 && [

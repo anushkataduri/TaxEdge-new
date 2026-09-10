@@ -80,6 +80,15 @@ export interface AuthStoreState {
   // Passcode State
   passcode: string;
   confirmPasscode: string;
+
+  // Onboarding & Service Access
+  profileCompleted: boolean;
+  pendingServiceRoute: string | null;
+  isCompleteProfileModalOpen: boolean;
+
+  // Biometric Authentication
+  isBiometricEnabled: boolean;
+  biometricTypeLabel: string;
 }
 
 export interface AuthStoreActions {
@@ -91,6 +100,16 @@ export interface AuthStoreActions {
   setAuthFlowState: (state: AuthFlowState) => void;
   setError: (err: string | null) => void;
   setIsLoading: (loading: boolean) => void;
+
+  // Onboarding & Service Access actions
+  setProfileCompleted: (completed: boolean) => void;
+  setPendingServiceRoute: (route: string | null) => void;
+  openCompleteProfileModal: (targetRoute?: string) => void;
+  closeCompleteProfileModal: () => void;
+
+  // Biometric actions
+  setBiometricEnabled: (enabled: boolean) => Promise<void>;
+  syncBiometricState: () => Promise<void>;
 
   // Timer actions
   setOtpTimer: (t: number) => void;

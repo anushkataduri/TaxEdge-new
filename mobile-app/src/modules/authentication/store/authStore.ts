@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type { Customer, CustomerProfile } from "../../../shared/types/domain";
 import type { DevUser, AuthState, AuthFlowState } from "../types/auth.types";
 import { authService } from "../services/authService";
+import { authStorage } from "../services/authStorage";
+import { biometricService } from "../services/biometricService";
 import {
   validateLoginPhone,
   validateOtp,
@@ -53,6 +55,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   passcode: "",
   confirmPasscode: "",
 
+  // Onboarding & Service Access
+  profileCompleted: Boolean(initialUser && initialUser.registrationCompleted && initialUser.passcode),
+  pendingServiceRoute: null,
+  isCompleteProfileModalOpen: false,
+
+  // Biometric Authentication
+  isBiometricEnabled: false,
+  biometricTypeLabel: "Fingerprint",
+
   // Field updaters
   setMobileNumber: (m) => set({ mobileNumber: m.replace(/\D/g, ""), error: null }),
   setOtp: (otp) => set({ otp: otp.replace(/\D/g, ""), error: null }),
@@ -61,6 +72,29 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setAuthFlowState: (authFlowState) => set({ authFlowState, error: null }),
   setError: (error) => set({ error }),
   setIsLoading: (isLoading) => set({ isLoading }),
+
+  // Onboarding & Service Access actions
+  setProfileCompleted: (completed: boolean) => set({ profileCompleted: completed }),
+  setPendingServiceRoute: (route: string | null) => set({ pendingServiceRoute: route }),
+  openCompleteProfileModal: (targetRoute?: string) =>
+    set({
+      isCompleteProfileModalOpen: true,
+      pendingServiceRoute: targetRoute !== undefined ? targetRoute : get().pendingServiceRoute,
+    }),
+  closeCompleteProfileModal: () => set({ isCompleteProfileModalOpen: false }),
+
+  // Biometric actions
+  setBiometricEnabled: async (enabled: boolean) => {
+    const mobile = get().mobileNumber || get().authenticatedUser?.mobileNumber;
+    await biometricService.setBiometricEnabled(enabled, mobile);
+    set({ isBiometricEnabled: enabled });
+  },
+
+  syncBiometricState: async () => {
+    const isEnabled = await biometricService.isBiometricEnabled();
+    const label = await biometricService.getBiometricTypeLabel();
+    set({ isBiometricEnabled: isEnabled, biometricTypeLabel: label });
+  },
 
   // Timer actions
   setOtpTimer: (t) => set({ otpTimer: t, canResendOTP: t <= 0 }),
@@ -134,8 +168,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         });
         return { success: true, isExistingUser: true };
       } else {
+        const cleanMobile = mobileNumber.replace(/\D/g, "");
+        const placeholderUser: DevUser = res.user || authStorage.getUserByMobile(cleanMobile) || {
+          customerId: `CUST-2026-${cleanMobile.slice(-5) || "00001"}`,
+          mobileNumber: cleanMobile,
+          name: "Valued Client",
+          email: `${cleanMobile}@taxedge.in`,
+          customerType: "Individual",
+          registrationCompleted: false,
+        };
+        authStorage.saveUser(placeholderUser);
+        authStorage.saveSession({
+          isLoggedIn: true,
+          activeMobile: cleanMobile,
+          lastLoginAt: new Date().toISOString(),
+        });
+
         set({
           isExistingUser: false,
+          isLoggedIn: true,
+          profileCompleted: false,
+          authenticatedUser: placeholderUser,
+          customer: toCustomer(placeholderUser),
           error: null,
         });
         return { success: true, isExistingUser: false };
@@ -166,6 +220,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         set({
           isLoading: false,
           isLoggedIn: true,
+          profileCompleted: true,
           authenticatedUser: res.user,
           customer: toCustomer(res.user),
           error: null,
@@ -320,6 +375,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       confirmPasscode: "",
       isExistingUser: false,
       error: null,
+      isCompleteProfileModalOpen: false,
     });
   },
 
@@ -340,9 +396,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (autoLogin) {
         set({
           isLoggedIn: true,
+          profileCompleted: true,
           mobileNumber: res.user.mobileNumber,
           customer: toCustomer(res.user),
           authenticatedUser: res.user,
+        });
+      } else {
+        set({
+          profileCompleted: true,
         });
       }
       return { success: true };
@@ -359,10 +420,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     authService.logout();
     set({
       isLoggedIn: false,
+      profileCompleted: false,
       customer: null,
       authenticatedUser: null,
       mobileNumber: "",
       authFlowState: "ENTER_MOBILE",
+      pendingServiceRoute: null,
+      isCompleteProfileModalOpen: false,
     });
   },
 
@@ -370,11 +434,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const u = authService.getCurrentUser();
     set({
       isLoggedIn: Boolean(authService.isAuthenticated() && u),
+      profileCompleted: Boolean(u && u.registrationCompleted && u.passcode),
       mobileNumber: u?.mobileNumber || "",
       customer: u ? toCustomer(u) : null,
       authenticatedUser: u,
     });
   },
 }));
+
+// Initialize biometric state asynchronously
+useAuthStore.getState().syncBiometricState();
 
 export default useAuthStore;
