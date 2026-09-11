@@ -140,6 +140,7 @@ export default function ApplicationDetailScreen() {
 
   const currentCustomerName = useAuthStore.getState().customer?.name;
   const isGstAmendment = app.serviceId === "gst-amendment";
+  const isGstCancellation = app.serviceId === "gst-cancellation";
   const formData = (app.formData || {}) as Record<string, any>;
   const isNonCore =
     formData.isCore === false ||
@@ -150,23 +151,49 @@ export default function ApplicationDetailScreen() {
       : false);
   const isCore = isGstAmendment && !isNonCore;
 
-  const displayId = isGstAmendment && formData.arn ? String(formData.arn) : app.id;
-  const displayName = isGstAmendment && formData.section ? `GST Amendment — ${formData.section}` : app.serviceName;
+  const displayId = (isGstAmendment || isGstCancellation) && formData.arn ? String(formData.arn) : app.id;
+  const displayName = isGstCancellation
+    ? "GST Cancellation (REG-16)"
+    : isGstAmendment && formData.section
+    ? `GST Amendment — ${formData.section}`
+    : app.serviceName;
   const applicantName =
     formData.businessName ||
     formData.tradeName ||
     formData.applicantName ||
-    (isGstAmendment
-      ? (formData.currentValues?.["Legal Business Name"] || "Registered Taxpayer")
+    (isGstAmendment || isGstCancellation
+      ? (formData.currentValues?.["Legal Business Name"] || formData.gstin || "Registered Taxpayer")
       : (currentCustomerName || "Verified Business"));
   const appliedDate = formData.submissionDate || formatDisplayDate(app.createdAt);
-  const assignedCA = app.assignedExecutive ? `CA ${app.assignedExecutive}` : (isGstAmendment ? (isCore ? "GST Verification Officer" : "Auto-Verification Engine") : "CA Vikram");
-  const expectedDate = isGstAmendment ? (isCore ? "15 Working Days (Officer Review)" : "Auto-Approved / 24 Hours") : calculateExpectedDate(app.createdAt);
+  const assignedCA = app.assignedExecutive
+    ? `CA ${app.assignedExecutive}`
+    : isGstCancellation
+    ? "GST Verification Officer"
+    : isGstAmendment
+    ? isCore
+      ? "GST Verification Officer"
+      : "Auto-Verification Engine"
+    : "CA Vikram";
+  const expectedDate = isGstCancellation
+    ? "15–30 Working Days (Officer Review)"
+    : isGstAmendment
+    ? isCore
+      ? "15 Working Days (Officer Review)"
+      : "Auto-Approved / 24 Hours"
+    : calculateExpectedDate(app.createdAt);
   const uploadedDocs = app.documents.filter((d: any) => d.status === "Uploaded").length;
   const totalAmount = app.paymentAmount;
   const baseServiceFee = Math.round(app.paymentAmount / 1.18);
   const gstAmount = app.paymentAmount - baseServiceFee;
   const isPaid = app.paymentStatus === "Paid";
+
+  const defaultGstCancellationTimeline: TimelineStep[] = [
+    { title: "Submitted", description: "Cancellation application filed (REG-16)", status: "completed", date: appliedDate },
+    { title: "Under Verification", description: "TaxEdge review in progress", status: "current", date: appliedDate },
+    { title: "Officer Review", description: "Assessing officer reviewing cancellation request", status: "pending" },
+    { title: "Action Required", description: "If clarification is requested by officer", status: "pending" },
+    { title: "Order of Cancellation", description: "Cancellation order issued (REG-19)", status: "pending" },
+  ];
 
   const defaultGstAmendmentTimeline: TimelineStep[] = [
     { title: "Submitted", description: "Amendment request created", status: "completed", date: appliedDate },
@@ -178,6 +205,8 @@ export default function ApplicationDetailScreen() {
 
   const timelineSteps: TimelineStep[] = (app.timeline && app.timeline.length > 0)
     ? app.timeline
+    : isGstCancellation
+    ? defaultGstCancellationTimeline
     : isGstAmendment
     ? defaultGstAmendmentTimeline
     : [
@@ -238,28 +267,54 @@ export default function ApplicationDetailScreen() {
 
   const headerInfo = {
     OVERVIEW: {
-      nav: isGstAmendment ? "Amendment Details" : "Application Details",
+      nav: isGstCancellation ? "Cancellation Details" : isGstAmendment ? "Amendment Details" : "Application Details",
       title: displayName,
-      sub: isGstAmendment ? `ARN: ${displayId} • ${appliedDate}` : `${applicantName} • ${appliedDate}`,
+      sub: isGstAmendment || isGstCancellation ? `ARN: ${displayId} • ${appliedDate}` : `${applicantName} • ${appliedDate}`,
     },
     STATUS: {
-      nav: isGstAmendment ? "Amendment Status" : "Application Status",
-      title: isGstAmendment ? (isCore ? "Officer Verification" : "System Verification") : (app.serviceId === "gst-filing" ? "Staff Verification" : "Document Verification"),
-      sub: isGstAmendment ? `Type: ${isCore ? "Core (Officer Approval)" : "Non-Core (Auto)"} • Target: ${expectedDate}` : `Assigned CA: ${assignedCA} • Target: ${expectedDate}`,
+      nav: isGstCancellation ? "Cancellation Status" : isGstAmendment ? "Amendment Status" : "Application Status",
+      title: isGstCancellation
+        ? "Officer Verification"
+        : isGstAmendment
+        ? isCore
+          ? "Officer Verification"
+          : "System Verification"
+        : app.serviceId === "gst-filing"
+        ? "Staff Verification"
+        : "Document Verification",
+      sub: isGstCancellation
+        ? `Type: Form REG-16 • Target: ${expectedDate}`
+        : isGstAmendment
+        ? `Type: ${isCore ? "Core (Officer Approval)" : "Non-Core (Auto)"} • Target: ${expectedDate}`
+        : `Assigned CA: ${assignedCA} • Target: ${expectedDate}`,
     },
     DOCUMENTS: {
-      nav: isGstAmendment ? "Supporting Documents" : (app.serviceId === "gst-filing" ? "Filing Documents" : "Required Documents"),
+      nav: isGstCancellation ? "Cancellation Documents" : isGstAmendment ? "Supporting Documents" : app.serviceId === "gst-filing" ? "Filing Documents" : "Required Documents",
       title: "Document Uploads",
       sub: isGstAmendment && formData.document ? "Supporting proof attached" : `${uploadedDocs} of ${app.documents.length} documents uploaded`,
     },
     PAYMENTS: {
       nav: "Payment Details",
       title: "Invoice & Fees",
-      sub: isGstAmendment ? "Government Portal Filing • Fee: Free" : `Total: ₹${totalAmount.toLocaleString()} • Status: ${app.paymentStatus}`,
+      sub: isGstAmendment || isGstCancellation ? "Government Portal Filing • Fee: Free" : `Total: ₹${totalAmount.toLocaleString()} • Status: ${app.paymentStatus}`,
     },
   }[activeTab];
 
-  const overviewRows = isGstAmendment
+  const overviewRows = isGstCancellation
+    ? [
+        { key: "Application Type", val: "GST Cancellation" },
+        { key: "ARN / Reference", val: displayId },
+        { key: "GSTIN", val: formData.gstin || "—" },
+        { key: "Reason for Cancellation", val: formData.reason || "—" },
+        { key: "Effective Date Sought", val: formData.cancellationDate || "—" },
+        { key: "Closing Stock & ITC", val: formData.closingStock || "Nil" },
+        { key: "Pending Liabilities", val: formData.pendingLiabilities || "Nil" },
+        { key: "Last GSTR-3B Filed", val: formData.lastGstr3b || "—" },
+        { key: "Submission Date", val: appliedDate },
+        { key: "Current Status", val: app.status || "Submitted" },
+        { key: "Processing Window", val: expectedDate },
+      ]
+    : isGstAmendment
     ? [
         { key: "Application Type", val: "GST Amendment" },
         { key: "ARN / Reference", val: displayId },
@@ -279,10 +334,10 @@ export default function ApplicationDetailScreen() {
         { key: "Expected Completion", val: expectedDate },
       ];
 
-  const paymentRows = isGstAmendment
+  const paymentRows = isGstAmendment || isGstCancellation
     ? [
         { key: "Government Portal Fee", val: "₹0 (Free)" },
-        { key: "TaxEdge Amendment Processing", val: "₹0 (Complimentary)" },
+        { key: isGstCancellation ? "TaxEdge Cancellation Processing" : "TaxEdge Amendment Processing", val: "₹0 (Complimentary)" },
         { key: "GST (18%)", val: "₹0" },
       ]
     : [
@@ -336,8 +391,7 @@ export default function ApplicationDetailScreen() {
         {/* TAB 1: OVERVIEW */}
         {activeTab === "OVERVIEW" && (
           <>
-
-            {isGstAmendment && (
+            {(isGstAmendment || isGstCancellation) && (
               <View style={styles.card}>
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
                   <View>
@@ -351,8 +405,10 @@ export default function ApplicationDetailScreen() {
 
                 <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 16 }}>
                   <View style={{ flex: 1.2 }}>
-                    <Text style={{ fontSize: 11, color: "#64748B", fontWeight: "500" }}>Section</Text>
-                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#0F172A", marginTop: 2 }} numberOfLines={1}>{formData.section || "GST Amendment"}</Text>
+                    <Text style={{ fontSize: 11, color: "#64748B", fontWeight: "500" }}>{isGstCancellation ? "Service" : "Section"}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: "700", color: "#0F172A", marginTop: 2 }} numberOfLines={1}>
+                      {isGstCancellation ? "Form REG-16" : formData.section || "GST Amendment"}
+                    </Text>
                   </View>
                   <View style={{ flex: 0.8, alignItems: "center" }}>
                     <Text style={{ fontSize: 11, color: "#64748B", fontWeight: "500" }}>GSTIN</Text>
@@ -376,8 +432,7 @@ export default function ApplicationDetailScreen() {
             <View style={styles.card}>
               <View style={styles.cardHeaderRow}>
                 <Ionicons name="information-circle-outline" size={20} color="#083B75" />
-                <Text style={styles.cardHeaderTitle}>{isGstAmendment ? "Amendment Overview" : "Application Info"}</Text>
-
+                <Text style={styles.cardHeaderTitle}>{isGstCancellation ? "Cancellation Overview" : isGstAmendment ? "Amendment Overview" : "Application Info"}</Text>
               </View>
               <View style={{ gap: 10 }}>
                 {overviewRows.map((r, i) => (

@@ -1,5 +1,5 @@
-﻿import React from "react";
-import GstCancellationScreen from "../../modules/gst/screens/GstCancellationScreen";
+import React from "react";
+import GstCancellationScreen from "../../modules/gst/screens/GSTCancellation/GstCancellationScreen";
 
 export default function GstCancellationRoute() {
   return <GstCancellationScreen />;

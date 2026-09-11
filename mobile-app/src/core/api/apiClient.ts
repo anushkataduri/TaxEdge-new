@@ -14,18 +14,32 @@ export interface RequestOptions {
  * Server Network Configuration
  * Change IP and Port here to point the mobile app to your backend.
  */
+
 export const SERVER_IP = "192.168.88.49";
+
+export const SERVER_IP = "192.168.88.9";
+
 
 export const SERVER_PORT = 8088;
 
 export const STORAGE_KEY_SERVER_URL = "@taxedge_server_url";
 
 export function getDefaultBaseUrl(): string {
+  // 1. Configured IP takes top priority for backend connection
+  if (SERVER_IP && SERVER_IP.trim() !== "") {
+    return `http://${SERVER_IP}:${SERVER_PORT}`;
+  }
+
+  // 2. Check environment variable if provided
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
   if (Platform.OS === "web") {
     return `http://localhost:${SERVER_PORT}`;
   }
 
-  // 1. Auto-detect host IP from Expo bundler (dynamically gets PC's IP in Expo Go)
+  // 3. Fallback: Auto-detect host IP from Expo bundler (dynamically gets PC's IP in Expo Go)
   try {
     const hostUri =
       Constants.expoConfig?.hostUri ||
@@ -40,12 +54,16 @@ export function getDefaultBaseUrl(): string {
     }
   } catch {}
 
+
   // 2. Configured IP for backend connection
   if (SERVER_IP) {
     return `http://${SERVER_IP}:${SERVER_PORT}`;
   }
 
   return `http://192.168.88.49:${SERVER_PORT}`;
+
+  return `http://192.168.88.9:${SERVER_PORT}`;
+
 }
 
 export class ApiClient {
