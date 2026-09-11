@@ -310,10 +310,15 @@ export default function ApplicationsScreen() {
           filteredApplications.map((item: Application) => {
             const badge = getStatusBadgeStyle(item.status);
             const isGstAmendment = item.serviceId === "gst-amendment";
+            const isGstCancellation = item.serviceId === "gst-cancellation";
             const idColor = item.category === "BUSINESS" || item.category === "LOANS" ? "#EA580C" : "#083B75";
             const formattedDate = formatDisplayDate(item.createdAt);
-            const displayId = isGstAmendment && item.formData?.arn ? item.formData.arn : item.id;
-            const displayName = isGstAmendment && item.formData?.section ? `GST Amendment — ${item.formData.section}` : item.serviceName;
+            const displayId = (isGstAmendment || isGstCancellation) && item.formData?.arn ? item.formData.arn : item.id;
+            const displayName = isGstCancellation
+              ? "GST Cancellation (REG-16)"
+              : isGstAmendment && item.formData?.section
+              ? `GST Amendment — ${item.formData.section}`
+              : item.serviceName;
 
             const isNonCore =
               String(item.formData?.isCore).toLowerCase() === "false" ||
