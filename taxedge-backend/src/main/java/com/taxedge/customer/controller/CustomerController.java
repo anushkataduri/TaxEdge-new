@@ -48,7 +48,7 @@ public class CustomerController {
 
     @GetMapping("/exists/{mobileNumber}")
     public ResponseEntity<java.util.Map<String, Object>> checkUserExists(@PathVariable String mobileNumber) {
-        boolean exists = customerService.existsByMobileNumber(mobileNumber);
-        return ResponseEntity.ok(java.util.Map.of("exists", exists, "mobileNumber", mobileNumber));
+        java.util.Map<String, Object> status = customerService.checkCustomerStatus(mobileNumber);
+        return ResponseEntity.ok(status);
     }
 }

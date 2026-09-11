@@ -1,5 +1,6 @@
 import Constants from "expo-constants";
 import { Platform } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ApiError } from "./apiError";
 import { InterceptorManager } from "./interceptors";
 
@@ -13,9 +14,15 @@ export interface RequestOptions {
  * Server Network Configuration
  * Change IP and Port here to point the mobile app to your backend.
  */
+
+export const SERVER_IP = "192.168.88.49";
+
 export const SERVER_IP = "192.168.88.9";
 
+
 export const SERVER_PORT = 8088;
+
+export const STORAGE_KEY_SERVER_URL = "@taxedge_server_url";
 
 export function getDefaultBaseUrl(): string {
   // 1. Configured IP takes top priority for backend connection
@@ -47,7 +54,16 @@ export function getDefaultBaseUrl(): string {
     }
   } catch {}
 
+
+  // 2. Configured IP for backend connection
+  if (SERVER_IP) {
+    return `http://${SERVER_IP}:${SERVER_PORT}`;
+  }
+
+  return `http://192.168.88.49:${SERVER_PORT}`;
+
   return `http://192.168.88.9:${SERVER_PORT}`;
+
 }
 
 export class ApiClient {
@@ -57,6 +73,7 @@ export class ApiClient {
   constructor(baseUrl: string = getDefaultBaseUrl()) {
     this.baseUrl = baseUrl;
     this.interceptors = new InterceptorManager();
+    this.loadCustomBaseUrl();
   }
 
   getBaseUrl(): string {
@@ -64,7 +81,36 @@ export class ApiClient {
   }
 
   setBaseUrl(url: string): void {
-    this.baseUrl = url;
+    let clean = url.trim();
+    if (!clean.startsWith("http://") && !clean.startsWith("https://")) {
+      clean = `http://${clean}`;
+    }
+    if (clean.endsWith("/")) {
+      clean = clean.slice(0, -1);
+    }
+    this.baseUrl = clean;
+  }
+
+  async loadCustomBaseUrl(): Promise<string> {
+    try {
+      const saved = await AsyncStorage.getItem(STORAGE_KEY_SERVER_URL);
+      if (saved && saved.trim()) {
+        this.setBaseUrl(saved.trim());
+      }
+    } catch {}
+    return this.baseUrl;
+  }
+
+  async saveCustomBaseUrl(url: string): Promise<string> {
+    this.setBaseUrl(url);
+    await AsyncStorage.setItem(STORAGE_KEY_SERVER_URL, this.baseUrl);
+    return this.baseUrl;
+  }
+
+  async resetCustomBaseUrl(): Promise<string> {
+    this.baseUrl = getDefaultBaseUrl();
+    await AsyncStorage.removeItem(STORAGE_KEY_SERVER_URL);
+    return this.baseUrl;
   }
 
   private buildUrl(path: string, params?: Record<string, string | number | boolean>): string {
@@ -172,7 +218,16 @@ export class ApiClient {
       if (error instanceof ApiError) {
         throw error;
       }
-      return this.interceptors.runErrorInterceptors(ApiError.fromError(error));
+      let errMessage = (error as any)?.message || "Request failed";
+      if (
+        errMessage.includes("canceled") ||
+        errMessage.includes("aborted") ||
+        errMessage.includes("Network request failed") ||
+        errMessage.includes("fetch failed")
+      ) {
+        errMessage = `Unable to connect to server (${this.baseUrl}). Please verify your Wi-Fi and server IP.`;
+      }
+      return this.interceptors.runErrorInterceptors(new ApiError(errMessage, 500, "NETWORK_ERROR"));
     }
   }
 }

@@ -54,6 +54,9 @@ export interface AuthResult {
   success: boolean;
   user?: DevUser;
   isExistingUser?: boolean;
+  customerExists?: boolean;
+  profileCompleted?: boolean;
+  hasPasscode?: boolean;
   message?: string;
   error?: string;
   token?: string;
@@ -69,6 +72,9 @@ export interface AuthStoreState {
   // Flow State
   authFlowState: AuthFlowState;
   isExistingUser: boolean;
+  customerExists: boolean;
+  profileCompleted: boolean;
+  hasPasscode: boolean;
   isLoading: boolean;
   error: string | null;
 
@@ -80,7 +86,16 @@ export interface AuthStoreState {
   // Passcode State
   passcode: string;
   confirmPasscode: string;
+
+  // Onboarding & Service Access
+  pendingServiceRoute: string | null;
+  isCompleteProfileModalOpen: boolean;
+
+  // Biometric Authentication
+  isBiometricEnabled: boolean;
+  biometricTypeLabel: string;
 }
+
 
 export interface AuthStoreActions {
   // Field updaters
@@ -92,6 +107,16 @@ export interface AuthStoreActions {
   setError: (err: string | null) => void;
   setIsLoading: (loading: boolean) => void;
 
+  // Onboarding & Service Access actions
+  setProfileCompleted: (completed: boolean) => void;
+  setPendingServiceRoute: (route: string | null) => void;
+  openCompleteProfileModal: (targetRoute?: string) => void;
+  closeCompleteProfileModal: () => void;
+
+  // Biometric actions
+  setBiometricEnabled: (enabled: boolean) => Promise<void>;
+  syncBiometricState: () => Promise<void>;
+
   // Timer actions
   setOtpTimer: (t: number) => void;
   decrementTimer: () => void;
@@ -99,7 +124,7 @@ export interface AuthStoreActions {
 
   // Business Flow Operations
   sendOtp: (overrideMobile?: string) => Promise<boolean>;
-  verifyOtp: (codeToVerify?: string) => Promise<{ success: boolean; isExistingUser?: boolean }>;
+  verifyOtp: (codeToVerify?: string) => Promise<{ success: boolean; isExistingUser?: boolean; requiresPasscode?: boolean; profileCompleted?: boolean }>;
   loginWithPasscode: (passcodeToUse?: string) => Promise<{ success: boolean; error?: string }>;
   startForgotPasscode: () => Promise<boolean>;
   verifyForgotPasscodeOtp: (codeToVerify?: string) => Promise<boolean>;

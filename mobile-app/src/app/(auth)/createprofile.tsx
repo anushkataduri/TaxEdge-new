@@ -23,6 +23,8 @@ import { useTheme } from "../../hooks/use-theme";
 import { BrandColors, Colors, BorderWidth, Spacing } from "../../shared/theme";
 import { useAuthStore } from "../../store/authStore";
 import { validatePasscode } from "../../modules/authentication/validation/authSchema";
+import { biometricService } from "../../modules/authentication/services/biometricService";
+import { BiometricPromptModal } from "../../shared/components/BiometricPromptModal";
 import { styles } from "../../styles/app/(auth)/create-profile.styles";
 import type { IconName } from "../../types/domain";
 
@@ -200,6 +202,11 @@ export default function CreateProfileScreen() {
   const [showGenderModal, setShowGenderModal] = useState(false);
   const [showStateModal, setShowStateModal] = useState(false);
   const [stateSearchQuery, setStateSearchQuery] = useState("");
+
+  // Biometric prompt state
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [biometricType, setBiometricType] = useState("Fingerprint");
+  const [pendingPostRegistrationRoute, setPendingPostRegistrationRoute] = useState<string | null>(null);
 
   // Calendar states
   const [pickerYear, setPickerYear] = useState(2000);
@@ -538,7 +545,25 @@ export default function CreateProfileScreen() {
 
       setProfileLoading(false);
       if (res.success) {
-        router.replace("/(main)/home" as any);
+        const pendingRoute = useAuthStore.getState().pendingServiceRoute;
+        useAuthStore.getState().setPendingServiceRoute(null);
+        const destination = pendingRoute || "/(main)/home";
+
+        try {
+          const hasHardware = await biometricService.checkHardwareSupport();
+          const isEnrolled = await biometricService.checkEnrollment();
+          const isAlreadyEnabled = await biometricService.isBiometricEnabled();
+
+          if (hasHardware && isEnrolled && !isAlreadyEnabled) {
+            const typeLabel = await biometricService.getBiometricTypeLabel();
+            setBiometricType(typeLabel);
+            setPendingPostRegistrationRoute(destination);
+            setShowBiometricModal(true);
+            return;
+          }
+        } catch {}
+
+        router.replace(destination as any);
       } else {
         Alert.alert(
           "Registration Error",
@@ -552,6 +577,24 @@ export default function CreateProfileScreen() {
         err?.message || "An unexpected error occurred during registration."
       );
     }
+  };
+
+  const handleEnableBiometric = async () => {
+    setShowBiometricModal(false);
+    try {
+      const authRes = await biometricService.authenticate();
+      if (authRes.success) {
+        await useAuthStore.getState().setBiometricEnabled(true);
+      }
+    } catch {}
+    const destination = pendingPostRegistrationRoute || "/(main)/home";
+    router.replace(destination as any);
+  };
+
+  const handleNotNowBiometric = () => {
+    setShowBiometricModal(false);
+    const destination = pendingPostRegistrationRoute || "/(main)/home";
+    router.replace(destination as any);
   };
 
   // Back Button handler
@@ -1429,6 +1472,14 @@ export default function CreateProfileScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Biometric Enable Prompt Modal */}
+      <BiometricPromptModal
+        visible={showBiometricModal}
+        biometricType={biometricType}
+        onEnable={handleEnableBiometric}
+        onNotNow={handleNotNowBiometric}
+      />
     </KeyboardAvoidingView>
   );
 }

@@ -17,3 +17,6 @@ export * from "./DynamicForm";
 export * from "./ScreenLayout";
 export * from "./DocumentCropModal";
 export * from "./UniversalDraftModal";
+export * from "./CompleteProfileModal";
+export * from "./BiometricPromptModal";
+export * from "./ServerConfigModal";

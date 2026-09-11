@@ -5,6 +5,8 @@ import { useTheme } from "../../hooks/use-theme";
 import { Spacing } from "../../shared/theme";
 import { getServiceById } from "../../data/services";
 import { useApplicationStore } from "../../store/applicationStore";
+import { useAuthStore } from "../../store/authStore";
+import { useServiceAccessGuard } from "../../shared/hooks/useServiceAccessGuard";
 import { AppHeader } from "../../components/AppHeader";
 import { DynamicForm } from "../../components/DynamicForm";
 import { PrimaryButton } from "../../components/PrimaryButton";
@@ -24,10 +26,24 @@ export default function ServiceDetailScreen() {
   const service = getServiceById(id || "");
 
   const createApplication = useApplicationStore((state) => state.createApplication);
+  const { isLoggedIn, profileCompleted } = useServiceAccessGuard();
+  const openCompleteProfileModal = useAuthStore((state) => state.openCompleteProfileModal);
 
   // UI state for details tabs & form toggle
   const [activeTab, setActiveTab] = useState<ServiceTab>("Overview");
   const [showForm, setShowForm] = useState(false);
+
+  const handleStartApplication = () => {
+    if (!isLoggedIn) {
+      router.push("/(auth)/login" as any);
+      return;
+    }
+    if (!profileCompleted) {
+      openCompleteProfileModal(`/service/${id}`);
+      return;
+    }
+    setShowForm(true);
+  };
 
   if (!service) {
     return (
@@ -213,7 +229,7 @@ export default function ServiceDetailScreen() {
       <View style={[styles.bottomButtonContainer, { backgroundColor: colors.backgroundElement, borderTopColor: colors.border, paddingBottom: Math.max(insets.bottom, Spacing.md) }]}>
         <PrimaryButton
           title="Start Application"
-          onPress={() => setShowForm(true)}
+          onPress={handleStartApplication}
           colorType="orange"
         />
       </View>

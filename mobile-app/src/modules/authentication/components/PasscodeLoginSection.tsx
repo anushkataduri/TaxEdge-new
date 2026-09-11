@@ -1,5 +1,6 @@
 import React, { useRef, useEffect } from "react";
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from "react-native";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useTheme } from "../../../hooks/use-theme";
 import { BrandColors, BorderRadius, Typography, Spacing } from "../../../shared/theme";
 import { PrimaryButton } from "../../../shared/components/Button/PrimaryButton";
@@ -11,6 +12,9 @@ interface PasscodeLoginSectionProps {
   onForgotPasscode: () => void;
   loading: boolean;
   error?: string | null;
+  onBiometricLogin?: () => void;
+  isBiometricEnabled?: boolean;
+  biometricTypeLabel?: string;
 }
 
 export function PasscodeLoginSection({
@@ -20,6 +24,9 @@ export function PasscodeLoginSection({
   onForgotPasscode,
   loading,
   error,
+  onBiometricLogin,
+  isBiometricEnabled,
+  biometricTypeLabel = "Biometrics",
 }: PasscodeLoginSectionProps) {
   const colors = useTheme();
   const inputRef = useRef<TextInput>(null);
@@ -108,11 +115,46 @@ export function PasscodeLoginSection({
         colorType="orange"
         style={styles.loginBtn}
       />
+
+      {isBiometricEnabled && onBiometricLogin && (
+        <TouchableOpacity
+          onPress={onBiometricLogin}
+          activeOpacity={0.75}
+          style={[styles.biometricBtn, { borderColor: colors.border, backgroundColor: colors.backgroundElement }]}
+        >
+          <Ionicons
+            name={
+              (biometricTypeLabel || "").toLowerCase().includes("face")
+                ? "scan-outline"
+                : "finger-print-outline"
+            }
+            size={20}
+            color={colors.primary}
+          />
+          <Text style={[styles.biometricBtnText, { color: colors.primary }]}>
+            Login with {biometricTypeLabel}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  biometricBtn: {
+    marginTop: 12,
+    height: 48,
+    borderRadius: BorderRadius.base,
+    borderWidth: 1,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+  },
+  biometricBtnText: {
+    fontSize: Typography.fontSize.sm + 1,
+    fontWeight: Typography.fontWeight.semiBold,
+  },
   container: {
     width: "100%",
     marginTop: Spacing.md,

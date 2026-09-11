@@ -154,4 +154,6 @@ export interface Customer extends CustomerProfile {
   mobile: string;
   customerId: string;
   avatarUri?: string | null;
+  profileCompleted?: boolean;
+  hasPasscode?: boolean;
 }
