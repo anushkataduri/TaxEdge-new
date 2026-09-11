@@ -12,6 +12,7 @@
     },
     "android": {
       "package": "com.taxedge.mobile",
+      "versionCode": 1,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
@@ -22,7 +23,9 @@
       "predictiveBackGestureEnabled": false,
       "usesCleartextTraffic": true,
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.USE_BIOMETRIC",
+        "android.permission.USE_FINGERPRINT"
       ]
     },
     "web": {
@@ -55,9 +58,7 @@
           "color": "#0066CC"
         }
       ],
-
       "@react-native-community/datetimepicker",
-
       [
         "expo-build-properties",
         {
@@ -65,8 +66,14 @@
             "usesCleartextTraffic": true
           }
         }
-      ]
-
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow TaxEdge to use Face ID."
+        }
+      ],
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
@@ -75,10 +82,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "bb55dc52-6870-482a-8277-1912c933d410"
+        "projectId": "d0153435-2abc-452b-9c48-0f4ea13b4ad0"
       }
     },
-    "owner": "srinivas12345678"
+    "owner": "pavankalyan143"
   }
 }
- 

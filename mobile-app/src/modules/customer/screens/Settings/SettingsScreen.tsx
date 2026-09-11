@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,19 +7,111 @@ import {
   StyleSheet,
   Switch,
   Platform,
+  Alert,
 } from "react-native";
+import { useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ScreenLayout, SCREEN_BOTTOM_PADDING } from "../../../../shared/components/ScreenLayout/ScreenLayout";
 import { useTheme } from "../../../../hooks/use-theme";
 import { useThemeStore, type ThemeMode } from "../../../../design-system/theme/themeStore";
+import { useAuthStore } from "../../../authentication/store/authStore";
+import { biometricService } from "../../../authentication/services/biometricService";
+import { apiClient } from "../../../../core/api/apiClient";
+import { ServerConfigModal } from "../../../../shared/components";
 
 export function SettingsScreen() {
+  const router = useRouter();
   const colors = useTheme();
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
 
-  const [notificationsEnabled, setNotificationsEnabled] = React.useState(true);
-  const [biometricEnabled, setBiometricEnabled] = React.useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [biometricEnabled, setBiometricEnabled] = useState(false);
+  const [biometricLabel, setBiometricLabel] = useState("Fingerprint / Face ID");
+  const [showServerModal, setShowServerModal] = useState(false);
+  const [currentServerUrl, setCurrentServerUrl] = useState(apiClient.getBaseUrl());
+
+  const isBiometricEnabledStore = useAuthStore((state) => state.isBiometricEnabled);
+  const setBiometricEnabledStore = useAuthStore((state) => state.setBiometricEnabled);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadBiometrics() {
+      const isEnabled = await biometricService.isBiometricEnabled();
+      const label = await biometricService.getBiometricTypeLabel();
+      if (isMounted) {
+        setBiometricEnabled(isEnabled);
+        setBiometricLabel(label);
+      }
+    }
+    loadBiometrics();
+    return () => {
+      isMounted = false;
+    };
+  }, [isBiometricEnabledStore]);
+
+  const handleToggleBiometric = async (value: boolean) => {
+    if (value) {
+      const hasHardware = await biometricService.checkHardwareSupport();
+      if (!hasHardware) {
+        Alert.alert(
+          "Not Supported",
+          "Biometric authentication isn't supported on this device."
+        );
+        return;
+      }
+
+      const isEnrolled = await biometricService.checkEnrollment();
+      if (!isEnrolled) {
+        Alert.alert(
+          "Not Configured",
+          "No fingerprint or Face ID has been configured.\n\nPlease add one in your device settings."
+        );
+        return;
+      }
+
+      const authRes = await biometricService.authenticate(`Confirm ${biometricLabel} to enable`);
+      if (authRes.success) {
+        await setBiometricEnabledStore(true);
+        setBiometricEnabled(true);
+      } else if (authRes.error && authRes.error !== "Authentication cancelled") {
+        Alert.alert("Authentication Failed", authRes.error);
+      }
+    } else {
+      await setBiometricEnabledStore(false);
+      setBiometricEnabled(false);
+    }
+  };
+
+  const handleChangePasscode = () => {
+    const mobile = useAuthStore.getState().mobileNumber || useAuthStore.getState().authenticatedUser?.mobileNumber;
+    if (mobile) {
+      useAuthStore.getState().setMobileNumber(mobile);
+      useAuthStore.getState().setAuthFlowState("FORGOT_PASSCODE_OTP");
+      useAuthStore.getState().startForgotPasscode();
+      router.push("/(auth)/login" as any);
+    } else {
+      router.push("/(auth)/login" as any);
+    }
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Confirm Logout",
+      "Are you sure you want to log out of your TaxEdge account?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: () => {
+            useAuthStore.getState().logout();
+            router.replace("/(auth)/login" as any);
+          },
+        },
+      ]
+    );
+  };
 
   const handleSelectTheme = (mode: ThemeMode) => {
     if (mode === theme) return;
@@ -164,12 +256,12 @@ export function SettingsScreen() {
           </View>
         </View>
 
-        {/* ---------- Preferences & Security ---------- */}
+        {/* ---------- Preferences Section ---------- */}
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+            <Ionicons name="notifications-outline" size={18} color={colors.primary} />
             <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-              PREFERENCES & SECURITY
+              PREFERENCES
             </Text>
           </View>
 
@@ -192,37 +284,101 @@ export function SettingsScreen() {
                 trackColor={{ false: "#CBD5E1", true: colors.orange }}
               />
             </View>
+          </View>
+        </View>
 
-            <View
-              style={[
-                styles.row,
-                { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
-              ]}
-            >
+        {/* ---------- Security Section ---------- */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Ionicons name="shield-checkmark-outline" size={18} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+              SECURITY
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.card,
+              { backgroundColor: colors.backgroundElement, borderColor: colors.border },
+            ]}
+          >
+            {/* Biometric Login */}
+            <View style={styles.row}>
               <View style={styles.switchLabelGroup}>
-                <Text style={[styles.label, { color: colors.text }]}>
-                  Biometric Authentication
-                </Text>
+                <Text style={[styles.label, { color: colors.text }]}>Biometric Login</Text>
                 <Text style={[styles.subLabel, { color: colors.textSecondary }]}>
-                  Fingerprint or Face ID for fast login
+                  Use {biometricLabel}
                 </Text>
               </View>
               <Switch
                 value={biometricEnabled}
-                onValueChange={setBiometricEnabled}
+                onValueChange={handleToggleBiometric}
                 trackColor={{ false: "#CBD5E1", true: colors.orange }}
               />
             </View>
+
+            {/* Change Passcode */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleChangePasscode}
+              style={[
+                styles.linkRow,
+                { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+              ]}
+            >
+              <View style={styles.switchLabelGroup}>
+                <Text style={[styles.label, { color: colors.text }]}>Change Passcode</Text>
+                <Text style={[styles.subLabel, { color: colors.textSecondary }]}>
+                  Update your 6-digit security PIN
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
+            </TouchableOpacity>
+
+            {/* Logout */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={handleLogout}
+              style={[
+                styles.linkRow,
+                { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+              ]}
+            >
+              <View style={styles.switchLabelGroup}>
+                <Text style={[styles.label, { color: colors.error }]}>Logout</Text>
+                <Text style={[styles.subLabel, { color: colors.textSecondary }]}>
+                  Sign out of your active session
+                </Text>
+              </View>
+              <Ionicons name="log-out-outline" size={18} color={colors.error} />
+            </TouchableOpacity>
           </View>
         </View>
 
-        {/* ---------- App Information ---------- */}
-        <View style={styles.appInfoContainer}>
+        {/* ---------- App Information (Tap to configure backend server) ---------- */}
+        <TouchableOpacity
+          style={styles.appInfoContainer}
+          onPress={() => {
+            setCurrentServerUrl(apiClient.getBaseUrl());
+            setShowServerModal(true);
+          }}
+          activeOpacity={0.7}
+        >
           <Text style={[styles.appInfoText, { color: colors.textSecondary }]}>
             TaxEdge Fin Solutions • v1.0.0
           </Text>
-        </View>
+          <Text style={{ fontSize: 11, color: colors.primary, marginTop: 4, fontWeight: "600" }}>
+            ⚙️ Backend: {currentServerUrl}
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
+
+      {/* Server Configuration Modal */}
+      <ServerConfigModal
+        visible={showServerModal}
+        onClose={() => setShowServerModal(false)}
+        onSaved={(newUrl) => setCurrentServerUrl(newUrl)}
+      />
     </ScreenLayout>
   );
 }
@@ -317,6 +473,12 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 12,
+  },
+  linkRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 14,
   },
   switchLabelGroup: {
     flex: 1,

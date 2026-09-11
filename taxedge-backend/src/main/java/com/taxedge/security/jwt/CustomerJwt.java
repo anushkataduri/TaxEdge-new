@@ -20,4 +20,20 @@ public class CustomerJwt {
     private String name;
 
     private String mobileNumber;
-}
+
+    private String customerType;
+
+    private Boolean profileCompleted;
+
+    private Boolean hasPasscode;
+
+    public CustomerJwt(String accessToken, String refreshToken, String custId, String name, String mobileNumber) {
+        this.accessToken = accessToken;
+        this.refreshToken = refreshToken;
+        this.custId = custId;
+        this.name = name;
+        this.mobileNumber = mobileNumber;
+        this.profileCompleted = true;
+        this.hasPasscode = true;
+    }
+}

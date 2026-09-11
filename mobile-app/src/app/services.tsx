@@ -14,11 +14,13 @@ import { SERVICES, CATEGORIES } from "../data/services";
 import { ScreenLayout } from "../components/ScreenLayout";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useServiceAccessGuard } from "../shared/hooks/useServiceAccessGuard";
 import { styles } from "../styles/app/services.styles";
 
 export default function ServicesScreen() {
   const colors = useTheme();
   const router = useRouter();
+  const { accessService } = useServiceAccessGuard();
   const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{ selectedCategory?: string }>();
   const [searchQuery, setSearchQuery] = useState("");
@@ -170,7 +172,7 @@ export default function ServicesScreen() {
         renderItem={({ item }) => (
           <TouchableOpacity
             activeOpacity={0.8}
-            onPress={() => router.push(`/service/${item.id}`)}
+            onPress={() => accessService(`/service/${item.id}`)}
             style={[
               styles.serviceCard,
               {

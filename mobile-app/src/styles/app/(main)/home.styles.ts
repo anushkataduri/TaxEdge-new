@@ -16,6 +16,8 @@ const { width } = Dimensions.get("window");
 const H_PADDING = Spacing.base;
 const BANNER_HEIGHT = 168;
 const CARD_WIDTH = width - H_PADDING * 2;
+const GRID_GAP = 8;
+const SERVICE_CARD_WIDTH = Math.floor((CARD_WIDTH - GRID_GAP * 3) / 4);
 
 export const styles = StyleSheet.create({
   container: {
@@ -218,32 +220,50 @@ export const styles = StyleSheet.create({
     fontWeight: Typography.fontWeight.bold,
   },
 
-  /* Quick links */
   bannerPage: {
     width: CARD_WIDTH,
   },
-  quickRow: {
+
+  /* 8-Card Services Grid */
+  servicesGrid: {
     flexDirection: "row",
-    paddingHorizontal: 10,
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    rowGap: 10,
+    marginBottom: Spacing.sm,
   },
-  quickTile: {
-    flex: 1,
+  serviceCard: {
+    width: SERVICE_CARD_WIDTH,
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingTop: 8,
+    paddingBottom: 10,
+    paddingHorizontal: 2,
     alignItems: "center",
-    paddingHorizontal: 1,
-  },
-  circleIcon: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
     justifyContent: "center",
-    alignItems: "center",
+    minHeight: 106,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 5,
+      },
+      android: {
+        elevation: 2,
+      },
+    }),
   },
-  circleLabel: {
-    fontSize: 11.5,
-    fontWeight: Typography.fontWeight.bold,
+  serviceIconImage: {
+    width: Math.min(54, Math.floor(SERVICE_CARD_WIDTH * 0.72)),
+    height: Math.min(54, Math.floor(SERVICE_CARD_WIDTH * 0.72)),
+    marginBottom: 6,
+  },
+  serviceCardLabel: {
+    fontSize: 11,
+    fontWeight: "600",
     textAlign: "center",
-    marginTop: 9,
-    lineHeight: 14,
+    lineHeight: 13,
   },
 
   /* All services sheet */

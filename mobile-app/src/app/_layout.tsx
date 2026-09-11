@@ -3,6 +3,7 @@ import { Stack } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { ThemeProvider } from "../design-system/theme";
 import { AnimatedSplashOverlay } from "../components/animated-icon";
+import { CompleteProfileModal } from "../shared/components/CompleteProfileModal";
 
 SplashScreen.preventAutoHideAsync();
 
@@ -62,6 +63,7 @@ export default function RootLayout() {
           <Stack.Screen name="chat/[id]" />
           <Stack.Screen name="notifications" />
         </Stack>
+        <CompleteProfileModal />
       </ThemeProvider>
     </SafeAreaProvider>
   );

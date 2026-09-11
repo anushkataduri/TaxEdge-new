@@ -1,13 +1,28 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { DevUser } from "../types/auth.types";
 
-const KEY_USERS = "taxEdgeDevUsersMap";
-const KEY_SESSION = "taxEdgeDevSession";
+const KEY_USERS = "@taxEdgeUsersMap";
+const KEY_SESSION = "@taxEdgeSession";
 const memory: Record<string, string> = {};
+
+// Initialize memory cache from AsyncStorage on launch
+(async () => {
+  try {
+    const [savedUsers, savedSession] = await Promise.all([
+      AsyncStorage.getItem(KEY_USERS),
+      AsyncStorage.getItem(KEY_SESSION),
+    ]);
+    if (savedUsers) memory[KEY_USERS] = savedUsers;
+    if (savedSession) memory[KEY_SESSION] = savedSession;
+  } catch (e) {
+    console.warn("Error hydrating auth storage:", e);
+  }
+})();
 
 const get = (k: string) => {
   try {
     if (typeof window !== "undefined" && window.localStorage) {
-      return window.localStorage.getItem(k);
+      return window.localStorage.getItem(k) || memory[k] || null;
     }
   } catch {}
   return memory[k] || null;
@@ -20,6 +35,7 @@ const set = (k: string, v: string) => {
     }
   } catch {}
   memory[k] = v;
+  AsyncStorage.setItem(k, v).catch(() => {});
 };
 
 const del = (k: string) => {
@@ -29,9 +45,20 @@ const del = (k: string) => {
     }
   } catch {}
   delete memory[k];
+  AsyncStorage.removeItem(k).catch(() => {});
 };
 
 export const authStorage = {
+  hydrate: async (): Promise<void> => {
+    try {
+      const [savedUsers, savedSession] = await Promise.all([
+        AsyncStorage.getItem(KEY_USERS),
+        AsyncStorage.getItem(KEY_SESSION),
+      ]);
+      if (savedUsers) memory[KEY_USERS] = savedUsers;
+      if (savedSession) memory[KEY_SESSION] = savedSession;
+    } catch {}
+  },
   getUsersMap: (): Record<string, DevUser> => {
     try {
       return JSON.parse(get(KEY_USERS) || "{}");
@@ -64,3 +91,4 @@ export const authStorage = {
 };
 
 export default authStorage;
+

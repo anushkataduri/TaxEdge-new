@@ -11,9 +11,11 @@ import {
   Dimensions,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
+import * as DocumentPicker from "expo-document-picker";
 import { BrandColors } from "../../../shared/theme";
 import { pickImageFromGallery, pickImageFromCamera } from "../utils/imageUploadHelper";
 import { DocumentCropModal } from "../../../shared/components/DocumentCropModal";
+import { formatFileSize, isFileSizeValid, MAX_FILE_SIZE_BYTES } from "../utils/gstValidation";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -29,7 +31,11 @@ export interface DocumentItem {
   fileUri?: string;
   fileName?: string;
   fileSize?: string;
+  mimeType?: string;
   uploadedAt?: string;
+  fileUriBack?: string;
+  fileNameBack?: string;
+  fileSizeBack?: string;
 }
 
 export const INITIAL_DOCUMENTS: DocumentItem[] = [
@@ -112,7 +118,7 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
   onUpdateDocuments,
 }) => {
   const [previewDoc, setPreviewDoc] = useState<DocumentItem | null>(null);
-  const [cropTarget, setCropTarget] = useState<{ docId: string; uri: string } | null>(null);
+  const [cropTarget, setCropTarget] = useState<{ docId: string; uri: string; side?: "front" | "back" } | null>(null);
   const [showAddressProofModal, setShowAddressProofModal] = useState(false);
 
   // Pure functional calculation of progress using reduce
@@ -130,33 +136,120 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
     "Financial & Signatory",
   ];
 
-  const handleUploadOption = async (docId: string, source: "gallery" | "camera") => {
-    const targetDoc = documents.find(d => d.id === docId);
-    if (targetDoc?.id === "address-proof" && targetDoc.subtitle === "Electricity Bill / Rental Agreement") {
+  const handleUploadOption = async (
+    docId: string,
+    source: "gallery" | "camera" | "document",
+    side: "front" | "back" = "front"
+  ) => {
+    const targetDoc = documents.find((d) => d.id === docId);
+    if (
+      targetDoc?.id === "address-proof" &&
+      targetDoc.subtitle === "Electricity Bill / Rental Agreement"
+    ) {
       Alert.alert(
-        "Select Document Type", 
+        "Select Document Type",
         "Please select the type of address proof from the dropdown first.",
         [{ text: "OK", onPress: () => setShowAddressProofModal(true) }]
       );
       return;
     }
 
-    const uri = source === "camera" ? await pickImageFromCamera(false) : await pickImageFromGallery(false);
+    if (source === "document") {
+      try {
+        const result = await DocumentPicker.getDocumentAsync({
+          type: ["application/pdf", "image/jpeg", "image/png", "image/jpg"],
+          copyToCacheDirectory: true,
+        });
+
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const asset = result.assets[0];
+          const fileName = asset.name || `${targetDoc?.name || "Document"}.pdf`;
+          const fileSize = asset.size;
+
+          const lowerName = fileName.toLowerCase();
+          const allowedExts = [".pdf", ".jpg", ".jpeg", ".png"];
+          const isAllowed = allowedExts.some((ext) => lowerName.endsWith(ext));
+          if (!isAllowed) {
+            Alert.alert(
+              "Unsupported File",
+              "Unsupported file type. Please upload a PDF, JPG, or PNG document."
+            );
+            return;
+          }
+
+          if (fileSize && !isFileSizeValid(fileSize, MAX_FILE_SIZE_BYTES)) {
+            Alert.alert("File Too Large", "File size must be 20 MB or less");
+            return;
+          }
+
+          const updatedList = documents.map((doc) => {
+            if (doc.id === docId) {
+              if (side === "back") {
+                return {
+                  ...doc,
+                  fileUriBack: asset.uri,
+                  fileNameBack: fileName,
+                  fileSizeBack: fileSize ? formatFileSize(fileSize) : "Document",
+                };
+              }
+              return {
+                ...doc,
+                fileUri: asset.uri,
+                fileName: fileName,
+                fileSize: fileSize ? formatFileSize(fileSize) : "Document",
+                mimeType:
+                  asset.mimeType ||
+                  (lowerName.endsWith(".pdf")
+                    ? "application/pdf"
+                    : "image/jpeg"),
+                uploadedAt: new Date().toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                }),
+              };
+            }
+            return doc;
+          });
+          onUpdateDocuments(updatedList);
+        }
+      } catch (err) {
+        Alert.alert("Upload Error", "Could not select document. Please try again.");
+      }
+      return;
+    }
+
+    const uri =
+      source === "camera"
+        ? await pickImageFromCamera(false)
+        : await pickImageFromGallery(false);
     if (uri) {
-      setCropTarget({ docId, uri });
+      setCropTarget({ docId, uri, side });
     }
   };
 
   const handleCropDone = (croppedUri: string) => {
     if (!cropTarget) return;
     const targetDocId = cropTarget.docId;
+    const side = cropTarget.side || "front";
     const updatedList = documents.map((doc) => {
       if (doc.id === targetDocId) {
+        if (side === "back") {
+          return {
+            ...doc,
+            fileUriBack: croppedUri,
+            fileNameBack: `${doc.name.replace(/[\s/]/g, "_")}_back.jpg`,
+            fileSizeBack: "Photo",
+          };
+        }
         return {
           ...doc,
           fileUri: croppedUri,
           fileName: `${doc.name.replace(/[\s/]/g, "_")}.jpg`,
-          uploadedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          fileSize: "Photo",
+          uploadedAt: new Date().toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
+          }),
         };
       }
       return doc;
@@ -165,22 +258,32 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
     setCropTarget(null);
   };
 
-  const handlePromptUpload = (docId: string) => {
-    const targetDoc = documents.find(d => d.id === docId);
-    if (targetDoc?.id === "address-proof" && targetDoc.subtitle === "Electricity Bill / Rental Agreement") {
+  const handlePromptUpload = (docId: string, side: "front" | "back" = "front") => {
+    const targetDoc = documents.find((d) => d.id === docId);
+    if (
+      targetDoc?.id === "address-proof" &&
+      targetDoc.subtitle === "Electricity Bill / Rental Agreement"
+    ) {
       Alert.alert(
-        "Select Document Type", 
+        "Select Document Type",
         "Please select the type of address proof from the dropdown first.",
         [{ text: "OK", onPress: () => setShowAddressProofModal(true) }]
       );
       return;
     }
 
-    Alert.alert("Upload Document", "Choose source to select document image:", [
-      { text: "Camera", onPress: () => handleUploadOption(docId, "camera") },
-      { text: "Photo Gallery", onPress: () => handleUploadOption(docId, "gallery") },
-      { text: "Cancel", style: "cancel" },
-    ]);
+    Alert.alert(
+      "Upload Document",
+      docId === "aadhaar"
+        ? `Choose source for Aadhaar ${side === "back" ? "Back" : "Front"} copy (Max: 20 MB):`
+        : "Choose document upload source (Max: 20 MB):",
+      [
+        { text: "Camera", onPress: () => handleUploadOption(docId, "camera", side) },
+        { text: "Photo Gallery", onPress: () => handleUploadOption(docId, "gallery", side) },
+        { text: "PDF / File Document", onPress: () => handleUploadOption(docId, "document", side) },
+        { text: "Cancel", style: "cancel" },
+      ]
+    );
   };
 
   const handleRemoveDoc = (docId: string) => {
@@ -195,7 +298,15 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
           onPress: () => {
             const updated = documents.map((doc) =>
               doc.id === docId
-                ? { ...doc, fileUri: undefined, fileName: undefined, fileSize: undefined }
+                ? {
+                    ...doc,
+                    fileUri: undefined,
+                    fileName: undefined,
+                    fileSize: undefined,
+                    fileUriBack: undefined,
+                    fileNameBack: undefined,
+                    fileSizeBack: undefined,
+                  }
                 : doc
             );
             onUpdateDocuments(updated);
@@ -311,6 +422,36 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
                       </View>
                     </View>
 
+                    {/* Aadhaar Front & Back Sub-Status */}
+                    {doc.id === "aadhaar" && isUploaded && (
+                      <View style={styles.aadhaarSidesContainer}>
+                        <View style={styles.aadhaarSideRow}>
+                          <Text style={styles.aadhaarSideLabel}>Front Copy:</Text>
+                          <Text style={styles.aadhaarSideStatus}>✓ Uploaded</Text>
+                          <TouchableOpacity onPress={() => handlePromptUpload(doc.id, "front")}>
+                            <Text style={styles.aadhaarSideAction}>Replace</Text>
+                          </TouchableOpacity>
+                        </View>
+                        <View style={styles.aadhaarSideRow}>
+                          <Text style={styles.aadhaarSideLabel}>Back Copy:</Text>
+                          {doc.fileUriBack ? (
+                            <>
+                              <Text style={styles.aadhaarSideStatus}>✓ Uploaded</Text>
+                              <TouchableOpacity onPress={() => handlePromptUpload(doc.id, "back")}>
+                                <Text style={styles.aadhaarSideAction}>Replace</Text>
+                              </TouchableOpacity>
+                            </>
+                          ) : (
+                            <TouchableOpacity onPress={() => handlePromptUpload(doc.id, "back")}>
+                              <Text style={[styles.aadhaarSideAction, { color: BrandColors.PRIMARY_ORANGE, fontWeight: '700' }]}>
+                                + Upload Back
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                        </View>
+                      </View>
+                    )}
+
                     {/* Action Bar */}
                     {isUploaded ? (
                       <View style={styles.uploadedActionRow}>
@@ -374,14 +515,14 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
                         <TouchableOpacity
                           style={[styles.uploadBtn, styles.uploadBtnPrimary]}
                           activeOpacity={0.8}
-                          onPress={() => handleUploadOption(doc.id, "gallery")}
+                          onPress={() => handlePromptUpload(doc.id)}
                         >
                           <Ionicons
                             name="cloud-upload-outline"
                             size={16}
                             color="#FFFFFF"
                           />
-                          <Text style={styles.uploadBtnPrimaryText}>Upload File</Text>
+                          <Text style={styles.uploadBtnPrimaryText}>Upload File / PDF</Text>
                         </TouchableOpacity>
                       </View>
                     )}
@@ -431,7 +572,14 @@ export const GstUnifiedDocumentStep: React.FC<GstUnifiedDocumentStepProps> = ({
 
             {/* Document Image Display */}
             <View style={styles.modalImageContainer}>
-              {previewDoc?.fileUri ? (
+              {previewDoc?.fileName?.toLowerCase().endsWith(".pdf") || previewDoc?.mimeType === "application/pdf" ? (
+                <View style={styles.modalPdfContainer}>
+                  <Ionicons name="document-text" size={64} color={BrandColors.PRIMARY_ORANGE} />
+                  <Text style={styles.modalPdfName}>{previewDoc.fileName}</Text>
+                  <Text style={styles.modalPdfSize}>{previewDoc.fileSize || "PDF Document"}</Text>
+                  <Text style={styles.modalPdfNote}>✓ Verified PDF format ready for GST verification</Text>
+                </View>
+              ) : previewDoc?.fileUri ? (
                 <Image
                   source={{ uri: previewDoc.fileUri }}
                   style={styles.modalImage}
@@ -808,6 +956,58 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#94A3B8",
     marginTop: 8,
+  },
+  modalPdfContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    gap: 10,
+  },
+  modalPdfName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: BrandColors.TEXT_PRIMARY,
+    textAlign: "center",
+    marginTop: 6,
+  },
+  modalPdfSize: {
+    fontSize: 12,
+    color: "#64748B",
+  },
+  modalPdfNote: {
+    fontSize: 12,
+    color: "#16A34A",
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  aadhaarSidesContainer: {
+    backgroundColor: "#F8FAFC",
+    borderRadius: 10,
+    padding: 10,
+    marginTop: 10,
+    gap: 6,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+  },
+  aadhaarSideRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  aadhaarSideLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#475569",
+  },
+  aadhaarSideStatus: {
+    fontSize: 12,
+    color: "#16A34A",
+    fontWeight: "600",
+  },
+  aadhaarSideAction: {
+    fontSize: 12,
+    color: BrandColors.PRIMARY_BLUE,
+    fontWeight: "600",
   },
   modalFooter: {
     flexDirection: "row",

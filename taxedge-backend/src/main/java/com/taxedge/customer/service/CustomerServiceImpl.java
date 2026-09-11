@@ -1,7 +1,7 @@
 package com.taxedge.customer.service;
 
 import java.time.LocalDateTime;
-
+import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,32 +43,88 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerJwt registerCustomer(CustomerDto customerDto) {
+        String cleanMobile = customerDto.getMobileNumber() != null ? customerDto.getMobileNumber().replaceAll("\\D", "") : "";
+        customerDto.setMobileNumber(cleanMobile);
 
-        validateUniqueFields(customerDto);
+        Optional<Customer> existingOpt = customerRepository.findByMobileNumber(cleanMobile);
+        Customer savedCustomer;
 
-        Customer customer = Customer.builder()
-                .custId(CustomerHelper.generateCustomerId())
-                .name(customerDto.getName())
-                .email(customerDto.getEmail())
-                .mobileNumber(customerDto.getMobileNumber())
-                .aadhaar(customerDto.getAadhaar())
-                .pan(customerDto.getPan())
-                .dob(customerDto.getDob())
-                .gender(customerDto.getGender())
-                .fatherSpouseName(customerDto.getFatherSpouseName())
-                .customerType(customerDto.getCustomerType())
-                .addressLine1(customerDto.getAddressLine1())
-                .addressLine2(customerDto.getAddressLine2())
-                .city(customerDto.getCity())
-                .pincode(customerDto.getPincode())
-                .state(customerDto.getState())
-                .address(customerDto.getAddress())
-                .password(passwordEncoder.encode(customerDto.getPassword()))
-                .pushToken(customerDto.getPushToken())
-                .createdAt(LocalDateTime.now())
-                .build();
+        if (existingOpt.isPresent()) {
+            Customer customer = existingOpt.get();
+            customer.setName(customerDto.getName());
+            if (customerDto.getEmail() != null && !customerDto.getEmail().isBlank()) {
+                customer.setEmail(customerDto.getEmail());
+            }
+            if (customerDto.getAadhaar() != null && !customerDto.getAadhaar().isBlank()) {
+                customer.setAadhaar(customerDto.getAadhaar());
+            }
+            if (customerDto.getPan() != null && !customerDto.getPan().isBlank()) {
+                customer.setPan(customerDto.getPan());
+            }
+            if (customerDto.getDob() != null) {
+                customer.setDob(customerDto.getDob());
+            }
+            if (customerDto.getGender() != null) {
+                customer.setGender(customerDto.getGender());
+            }
+            if (customerDto.getFatherSpouseName() != null) {
+                customer.setFatherSpouseName(customerDto.getFatherSpouseName());
+            }
+            if (customerDto.getCustomerType() != null) {
+                customer.setCustomerType(customerDto.getCustomerType());
+            }
+            if (customerDto.getAddressLine1() != null) {
+                customer.setAddressLine1(customerDto.getAddressLine1());
+            }
+            if (customerDto.getAddressLine2() != null) {
+                customer.setAddressLine2(customerDto.getAddressLine2());
+            }
+            if (customerDto.getCity() != null) {
+                customer.setCity(customerDto.getCity());
+            }
+            if (customerDto.getPincode() != null) {
+                customer.setPincode(customerDto.getPincode());
+            }
+            if (customerDto.getState() != null) {
+                customer.setState(customerDto.getState());
+            }
+            if (customerDto.getAddress() != null) {
+                customer.setAddress(customerDto.getAddress());
+            }
+            if (customerDto.getPassword() != null && !customerDto.getPassword().isBlank()) {
+                customer.setPassword(passwordEncoder.encode(customerDto.getPassword()));
+            }
+            if (customerDto.getPushToken() != null && !customerDto.getPushToken().isBlank()) {
+                customer.setPushToken(customerDto.getPushToken());
+            }
+            savedCustomer = customerRepository.save(customer);
+        } else {
+            validateUniqueFields(customerDto);
 
-        Customer savedCustomer = customerRepository.save(customer);
+            Customer customer = Customer.builder()
+                    .custId(CustomerHelper.generateCustomerId())
+                    .name(customerDto.getName())
+                    .email(customerDto.getEmail())
+                    .mobileNumber(cleanMobile)
+                    .aadhaar(customerDto.getAadhaar())
+                    .pan(customerDto.getPan())
+                    .dob(customerDto.getDob())
+                    .gender(customerDto.getGender())
+                    .fatherSpouseName(customerDto.getFatherSpouseName())
+                    .customerType(customerDto.getCustomerType())
+                    .addressLine1(customerDto.getAddressLine1())
+                    .addressLine2(customerDto.getAddressLine2())
+                    .city(customerDto.getCity())
+                    .pincode(customerDto.getPincode())
+                    .state(customerDto.getState())
+                    .address(customerDto.getAddress())
+                    .password(passwordEncoder.encode(customerDto.getPassword()))
+                    .pushToken(customerDto.getPushToken())
+                    .createdAt(LocalDateTime.now())
+                    .build();
+
+            savedCustomer = customerRepository.save(customer);
+        }
         
         if (savedCustomer.getPushToken() != null && !savedCustomer.getPushToken().isBlank()) {
             fcmNotificationService.sendRegistrationSuccessNotification(
@@ -90,7 +146,10 @@ public class CustomerServiceImpl implements CustomerService {
                 refreshToken,
                 savedCustomer.getCustId(),
                 savedCustomer.getName(),
-                savedCustomer.getMobileNumber()
+                savedCustomer.getMobileNumber(),
+                savedCustomer.getCustomerType() != null ? savedCustomer.getCustomerType().name() : "INDIVIDUAL",
+                Boolean.TRUE,
+                Boolean.TRUE
         );
     }
 
@@ -113,8 +172,8 @@ public class CustomerServiceImpl implements CustomerService {
 
     @Override
     public CustomerJwt loginCustomer(LoginRequest loginRequest) {
-
-        Customer customer = customerRepository.findByMobileNumber(loginRequest.getMobileNumber())
+        String cleanMobile = loginRequest.getMobileNumber() != null ? loginRequest.getMobileNumber().replaceAll("\\D", "") : "";
+        Customer customer = customerRepository.findByMobileNumber(cleanMobile)
                 .orElseThrow(() -> new InvalidCredentialsException("Invalid mobile number or password"));
 
         if (!passwordEncoder.matches(loginRequest.getPassword(), customer.getPassword())) {
@@ -129,12 +188,18 @@ public class CustomerServiceImpl implements CustomerService {
 
         String refreshToken = refreshTokenService.createRefreshToken(customer);
 
+        boolean hasPasscode = customer.getPassword() != null && !customer.getPassword().isBlank();
+        boolean profileCompleted = hasPasscode && customer.getName() != null && !customer.getName().isBlank() && customer.getCustomerType() != null;
+
         return new CustomerJwt(
                 accessToken,
                 refreshToken,
                 customer.getCustId(),
                 customer.getName(),
-                customer.getMobileNumber()
+                customer.getMobileNumber(),
+                customer.getCustomerType() != null ? customer.getCustomerType().name() : "INDIVIDUAL",
+                profileCompleted,
+                hasPasscode
         );
     }
 
@@ -142,8 +207,8 @@ public class CustomerServiceImpl implements CustomerService {
     @Override
     @Transactional
     public String updatePassword(UpdatePasswordDto updatePasswordDto) {
-
-    	Optional<Customer> optionalCustomer = customerRepository.findByMobileNumber(updatePasswordDto.getMobileNumber());
+        String cleanMobile = updatePasswordDto.getMobileNumber() != null ? updatePasswordDto.getMobileNumber().replaceAll("\\D", "") : "";
+    	Optional<Customer> optionalCustomer = customerRepository.findByMobileNumber(cleanMobile);
 
     	if (optionalCustomer.isEmpty()) {
     	    return "Customer not found";
@@ -161,6 +226,39 @@ public class CustomerServiceImpl implements CustomerService {
         if (mobileNumber == null || mobileNumber.trim().isEmpty()) {
             return false;
         }
-        return customerRepository.findByMobileNumber(mobileNumber.trim()).isPresent();
+        String cleanMobile = mobileNumber.replaceAll("\\D", "");
+        return customerRepository.findByMobileNumber(cleanMobile).isPresent();
+    }
+
+    @Override
+    public Map<String, Object> checkCustomerStatus(String mobileNumber) {
+        if (mobileNumber == null || mobileNumber.trim().isEmpty()) {
+            return Map.of(
+                "exists", false,
+                "customerExists", false,
+                "profileCompleted", false,
+                "hasPasscode", false
+            );
+        }
+        String cleanMobile = mobileNumber.replaceAll("\\D", "");
+        Optional<Customer> opt = customerRepository.findByMobileNumber(cleanMobile);
+        if (opt.isEmpty()) {
+            return Map.of(
+                "exists", false,
+                "customerExists", false,
+                "profileCompleted", false,
+                "hasPasscode", false
+            );
+        }
+        Customer c = opt.get();
+        boolean hasPasscode = c.getPassword() != null && !c.getPassword().isBlank();
+        boolean profileCompleted = hasPasscode && c.getName() != null && !c.getName().isBlank() && c.getCustomerType() != null;
+
+        return Map.of(
+            "exists", true,
+            "customerExists", true,
+            "profileCompleted", profileCompleted,
+            "hasPasscode", hasPasscode
+        );
     }
 }

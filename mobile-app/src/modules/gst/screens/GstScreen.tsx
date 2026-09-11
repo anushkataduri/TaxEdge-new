@@ -3,12 +3,14 @@ import { View } from "react-native";
 import { useRouter } from "expo-router";
 import { ServiceHeader } from "../../../shared/components/ServiceHeader";
 import { ServiceList } from "../../../shared/components/ServiceList";
+import { useServiceAccessGuard } from "../../../shared/hooks/useServiceAccessGuard";
 import { gstService } from "../services/GstService";
 import { GstServiceItem } from "../types/gst.types";
 import { styles } from "./GstScreen.styles";
 
 export const GstScreen: React.FC = () => {
   const router = useRouter();
+  const { accessService } = useServiceAccessGuard();
   const [services, setServices] = useState<GstServiceItem[]>([]);
 
   useEffect(() => {
@@ -17,7 +19,7 @@ export const GstScreen: React.FC = () => {
 
   const handleCardPress = (item: GstServiceItem) => {
     if (item.route) {
-      router.push(item.route as any);
+      accessService(item.route);
     }
   };
 

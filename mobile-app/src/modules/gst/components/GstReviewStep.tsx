@@ -37,6 +37,12 @@ export const GstReviewStep: React.FC<GstReviewStepProps> = ({
   const totalCount = documents.length;
   const progressPercent = totalCount > 0 ? (uploadedCount / totalCount) * 100 : 0;
 
+  const isPdf = (uri?: string, name?: string): boolean => {
+    const cleanUri = (uri || "").toLowerCase();
+    const cleanName = (name || "").toLowerCase();
+    return cleanUri.endsWith(".pdf") || cleanName.endsWith(".pdf") || cleanUri.includes("application/pdf");
+  };
+
   return (
     <View style={styles.container}>
       {/* 1. Business Details Card */}
@@ -124,7 +130,9 @@ export const GstReviewStep: React.FC<GstReviewStepProps> = ({
         <View style={styles.row}>
           <Text style={styles.label}>Bank & Branch</Text>
           <Text style={[styles.value, styles.valueMultiline]}>
-            {businessData.bankName || "—"} ({businessData.branchName || "—"})
+            {businessData.bankName
+              ? `${businessData.bankName}${businessData.branchName ? ` (${businessData.branchName})` : ""}`
+              : "—"}
           </Text>
         </View>
         <View style={styles.row}>
@@ -197,10 +205,14 @@ export const GstReviewStep: React.FC<GstReviewStepProps> = ({
                   <Text style={styles.uploadedDocName} numberOfLines={1}>
                     {doc.name}
                   </Text>
-                  {doc.id === "address-proof" && (
-                     <Text style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
-                       {doc.subtitle}
-                     </Text>
+                  {doc.fileName ? (
+                    <Text style={{ fontSize: 11, color: "#64748B", marginTop: 2 }} numberOfLines={1}>
+                      {doc.fileName} {doc.fileNameBack ? `• Back: ${doc.fileNameBack}` : ""}
+                    </Text>
+                  ) : doc.id === "address-proof" && (
+                    <Text style={{ fontSize: 11, color: "#64748B", marginTop: 2 }}>
+                      {doc.subtitle}
+                    </Text>
                   )}
                 </View>
                 <View style={styles.eyeIconBox}>
@@ -241,7 +253,7 @@ export const GstReviewStep: React.FC<GstReviewStepProps> = ({
                   {previewDoc?.name}
                 </Text>
                 <Text style={styles.modalDocSubtitle}>
-                  Uploaded document verification
+                  {previewDoc?.fileName || "Uploaded document"}
                 </Text>
               </View>
               <TouchableOpacity
@@ -255,11 +267,28 @@ export const GstReviewStep: React.FC<GstReviewStepProps> = ({
 
             <View style={styles.modalImageContainer}>
               {previewDoc?.fileUri ? (
-                <Image
-                  source={{ uri: previewDoc.fileUri }}
-                  style={styles.modalImage}
-                  resizeMode="contain"
-                />
+                isPdf(previewDoc.fileUri, previewDoc.fileName) ? (
+                  <View style={styles.modalPdfBox}>
+                    <Ionicons name="document-text" size={68} color="#DC2626" />
+                    <Text style={styles.modalPdfName} numberOfLines={2}>
+                      {previewDoc.fileName || previewDoc.name}
+                    </Text>
+                    {previewDoc.fileSize ? (
+                      <Text style={styles.modalPdfSize}>
+                        Size: {previewDoc.fileSize}
+                      </Text>
+                    ) : null}
+                    <Text style={styles.modalPdfNotice}>
+                      PDF verified & ready for department submission
+                    </Text>
+                  </View>
+                ) : (
+                  <Image
+                    source={{ uri: previewDoc.fileUri }}
+                    style={styles.modalImage}
+                    resizeMode="contain"
+                  />
+                )
               ) : (
                 <View style={styles.modalPlaceholder}>
                   <Ionicons name="document-text-outline" size={60} color="#94A3B8" />
@@ -483,6 +512,35 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 13,
     color: "#94A3B8",
+  },
+  modalPdfBox: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    backgroundColor: "#FEF2F2",
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    width: "90%",
+  },
+  modalPdfName: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#991B1B",
+    marginTop: 12,
+    textAlign: "center",
+  },
+  modalPdfSize: {
+    fontSize: 12,
+    color: "#B91C1C",
+    marginTop: 4,
+  },
+  modalPdfNotice: {
+    fontSize: 12,
+    color: "#059669",
+    fontWeight: "600",
+    marginTop: 12,
+    textAlign: "center",
   },
   modalFooterBtn: {
     margin: 14,
