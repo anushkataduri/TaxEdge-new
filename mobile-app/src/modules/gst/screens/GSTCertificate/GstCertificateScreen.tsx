@@ -11,17 +11,17 @@ import {
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { BrandColors } from "../../../shared/theme";
-import { GstServiceBanner } from "../components/common/GstServiceBanner";
-import { GstSelectModal } from "../components/common/GstSelectModal";
-import { GstSuccessAnimationScreen } from "../components/common/GstSuccessAnimationScreen";
-import { UniversalDraftModal } from "../../../shared/components/UniversalDraftModal";
-import { useUniversalDraftGuard } from "../../../shared/hooks/useUniversalDraftGuard";
-import { GstValidators } from "../utils/gstValidators";
+import { BrandColors } from "../../../../shared/theme";
+import { GstServiceBanner } from "../../components/common/GstServiceBanner";
+import { GstSelectModal } from "../../components/common/GstSelectModal";
+import { GstSuccessAnimationScreen } from "../../components/common/GstSuccessAnimationScreen";
+import { UniversalDraftModal } from "../../../../shared/components/UniversalDraftModal";
+import { useUniversalDraftGuard } from "../../../../shared/hooks/useUniversalDraftGuard";
+import { GstValidators } from "../../utils/gstValidators";
 import { styles } from "./GstCertificateScreen.styles";
-import { useAuthStore } from "../../../store/authStore";
-import { useApplicationStore } from "../../../store/applicationStore";
-import { notificationService } from "../../notifications/services/notificationService";
+import { useAuthStore } from "../../../../store/authStore";
+import { useApplicationStore } from "../../../../store/applicationStore";
+import { notificationService } from "../../../notifications/services/notificationService";
 
 const CERTIFICATE_REQUEST_TYPES = [
   "Download Existing Certificate (Form REG-06)",
