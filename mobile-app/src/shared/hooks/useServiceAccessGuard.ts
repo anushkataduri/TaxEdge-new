@@ -6,7 +6,16 @@ export function useServiceAccessGuard() {
   const router = useRouter();
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const profileCompleted = useAuthStore((s) => s.profileCompleted);
+  const customer = useAuthStore((s) => s.customer);
+  const authenticatedUser = useAuthStore((s) => s.authenticatedUser);
   const openCompleteProfileModal = useAuthStore((s) => s.openCompleteProfileModal);
+
+  const isProfileComplete = Boolean(
+    profileCompleted ||
+    customer?.profileCompleted ||
+    (customer as any)?.registrationCompleted ||
+    authenticatedUser?.registrationCompleted
+  );
 
   const accessService = useCallback(
     (targetRoute: any): boolean => {
@@ -16,8 +25,8 @@ export function useServiceAccessGuard() {
         return false;
       }
 
-      // 2. Checks profile completion
-      if (!profileCompleted) {
+      // 2. Checks profile completion using authenticated customer state
+      if (!isProfileComplete) {
         // 3. Shows the Complete Profile popup and remembers requested route
         openCompleteProfileModal(typeof targetRoute === "string" ? targetRoute : targetRoute?.pathname || "/service/gst");
         return false;
@@ -27,13 +36,13 @@ export function useServiceAccessGuard() {
       router.push(targetRoute as any);
       return true;
     },
-    [isLoggedIn, profileCompleted, openCompleteProfileModal, router]
+    [isLoggedIn, isProfileComplete, openCompleteProfileModal, router]
   );
 
   return {
     accessService,
     isLoggedIn,
-    profileCompleted,
+    profileCompleted: isProfileComplete,
   };
 }
 
@@ -45,7 +54,16 @@ export function useServiceProtection(targetRoute?: any) {
   const pathname = usePathname();
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn);
   const profileCompleted = useAuthStore((s) => s.profileCompleted);
+  const customer = useAuthStore((s) => s.customer);
+  const authenticatedUser = useAuthStore((s) => s.authenticatedUser);
   const openCompleteProfileModal = useAuthStore((s) => s.openCompleteProfileModal);
+
+  const isProfileComplete = Boolean(
+    profileCompleted ||
+    customer?.profileCompleted ||
+    (customer as any)?.registrationCompleted ||
+    authenticatedUser?.registrationCompleted
+  );
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -53,15 +71,15 @@ export function useServiceProtection(targetRoute?: any) {
       return;
     }
 
-    if (!profileCompleted) {
+    if (!isProfileComplete) {
       const routeToSave = targetRoute || pathname;
       openCompleteProfileModal(routeToSave);
       router.back();
     }
-  }, [isLoggedIn, profileCompleted, targetRoute, pathname, openCompleteProfileModal, router]);
+  }, [isLoggedIn, isProfileComplete, targetRoute, pathname, openCompleteProfileModal, router]);
 
   return {
-    isAuthorized: isLoggedIn && profileCompleted,
+    isAuthorized: isLoggedIn && isProfileComplete,
   };
 }
 

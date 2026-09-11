@@ -123,8 +123,8 @@ export function AuthenticationScreen() {
 
   const handleOtpVerify = async (code?: string) => {
     const res = await verifyOtp(code);
-    if (res.success && !res.isExistingUser) {
-      // First-time user -> open Dashboard directly without profile completion
+    if (res.success && !res.requiresPasscode) {
+      // User does not require passcode (new user, or existing user with no passcode) -> open Dashboard directly
       router.replace("/(main)/home" as any);
     }
   };

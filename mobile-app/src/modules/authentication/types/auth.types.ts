@@ -54,6 +54,9 @@ export interface AuthResult {
   success: boolean;
   user?: DevUser;
   isExistingUser?: boolean;
+  customerExists?: boolean;
+  profileCompleted?: boolean;
+  hasPasscode?: boolean;
   message?: string;
   error?: string;
   token?: string;
@@ -69,6 +72,9 @@ export interface AuthStoreState {
   // Flow State
   authFlowState: AuthFlowState;
   isExistingUser: boolean;
+  customerExists: boolean;
+  profileCompleted: boolean;
+  hasPasscode: boolean;
   isLoading: boolean;
   error: string | null;
 
@@ -82,7 +88,6 @@ export interface AuthStoreState {
   confirmPasscode: string;
 
   // Onboarding & Service Access
-  profileCompleted: boolean;
   pendingServiceRoute: string | null;
   isCompleteProfileModalOpen: boolean;
 
@@ -90,6 +95,7 @@ export interface AuthStoreState {
   isBiometricEnabled: boolean;
   biometricTypeLabel: string;
 }
+
 
 export interface AuthStoreActions {
   // Field updaters
@@ -118,7 +124,7 @@ export interface AuthStoreActions {
 
   // Business Flow Operations
   sendOtp: (overrideMobile?: string) => Promise<boolean>;
-  verifyOtp: (codeToVerify?: string) => Promise<{ success: boolean; isExistingUser?: boolean }>;
+  verifyOtp: (codeToVerify?: string) => Promise<{ success: boolean; isExistingUser?: boolean; requiresPasscode?: boolean; profileCompleted?: boolean }>;
   loginWithPasscode: (passcodeToUse?: string) => Promise<{ success: boolean; error?: string }>;
   startForgotPasscode: () => Promise<boolean>;
   verifyForgotPasscodeOtp: (codeToVerify?: string) => Promise<boolean>;

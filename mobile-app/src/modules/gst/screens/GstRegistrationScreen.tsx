@@ -19,13 +19,14 @@ import {
   DocumentItem,
 } from "../components/GstUnifiedDocumentStep";
 import { GstReviewStep } from "../components/GstReviewStep";
+import { GstRegistrationPaymentStep } from "../components/payment/GstRegistrationPaymentStep";
 import { GstApplicationStatusStep } from "../components/GstApplicationStatusStep";
 import { useApplicationStore } from "../../../store/applicationStore";
 import { UniversalDraftModal } from "../../../shared/components/UniversalDraftModal";
 import { useUniversalDraftGuard } from "../../../shared/hooks/useUniversalDraftGuard";
 import { styles } from "./GstRegistrationScreen.styles";
 
-const STEPS = ["Business", "Documents", "Review", "Submit"];
+const STEPS = ["Business", "Documents", "Review", "Payment"];
 
 export const GstRegistrationScreen: React.FC = () => {
   const router = useRouter();
@@ -108,7 +109,7 @@ export const GstRegistrationScreen: React.FC = () => {
     onDiscardDraft: () => {
       clearGstDraft();
     },
-    isSubmitted: () => screenIndex >= 3,
+    isSubmitted: () => screenIndex >= 4,
   });
 
   // Scroll to top on step transition
@@ -130,7 +131,7 @@ export const GstRegistrationScreen: React.FC = () => {
       if (gstDraft.documents && Array.isArray(gstDraft.documents)) {
         setDocuments(gstDraft.documents as DocumentItem[]);
       }
-      if (typeof gstDraft.stepIndex === "number" && gstDraft.stepIndex < 3) {
+      if (typeof gstDraft.stepIndex === "number" && gstDraft.stepIndex < 4) {
         setScreenIndex(gstDraft.stepIndex);
       }
     }
@@ -141,6 +142,7 @@ export const GstRegistrationScreen: React.FC = () => {
       case 0: return "GST Registration";
       case 1: return "Upload Documents";
       case 2: return "Review Application";
+      case 3: return "Complete Payment";
       default: return "Application Status";
     }
   };
@@ -149,7 +151,7 @@ export const GstRegistrationScreen: React.FC = () => {
     switch (screenIndex) {
       case 0: return "Continue to Documents";
       case 1: return "Continue to Review";
-      case 2: return "Submit Application";
+      case 2: return "Proceed to Payment";
       default: return "";
     }
   };
@@ -215,7 +217,7 @@ export const GstRegistrationScreen: React.FC = () => {
   };
 
   const handleBack = () => {
-    if (screenIndex === 3) {
+    if (screenIndex === 4) {
       router.replace("/(main)/home");
       return;
     }
@@ -258,30 +260,52 @@ export const GstRegistrationScreen: React.FC = () => {
       setScreenIndex(2);
     } else if (screenIndex === 2) {
       if (!declared) {
-        Alert.alert("Declaration Required", "Please accept the declaration to submit your application.");
+        Alert.alert("Declaration Required", "Please accept the declaration to proceed to payment.");
         return;
       }
 
-      // Final Submission: Create real application in store
-      const appId = createApplication(
-        "gst-registration",
-        "GST Registration",
-        "GST",
-        {
-          ...businessData,
-          applicantName: businessData.businessName || "Your Business",
-          appliedDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
-        } as any,
-        documents.map((d) => d.name),
-        1499
-      );
-
-      setCreatedAppId(appId);
-      markSubmitted();
-      clearGstDraft();
-
+      saveGstDraft({
+        id: "draft-gst",
+        stepIndex: 3,
+        personalData: {},
+        businessData: businessData as any,
+        documents: documents as any,
+        updatedAt: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      });
       setScreenIndex(3);
     }
+  };
+
+  const handlePaymentSuccess = (txnId: string, paymentMethod: string) => {
+    // Final Submission: Create real application in store
+    const appId = createApplication(
+      "gst-registration",
+      "GST Registration",
+      "GST",
+      {
+        ...businessData,
+        applicantName: businessData.businessName || businessData.legalName || "Your Business",
+        appliedDate: new Date().toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" }),
+        transactionId: txnId,
+        paymentMethod: paymentMethod,
+        paymentAmount: 1499,
+        paymentStatus: "Paid",
+      } as any,
+      documents.map((d) => ({
+        name: d.name,
+        status: "Uploaded" as const,
+        fileUri: d.fileUri,
+        fileName: d.fileName,
+        fileSize: d.fileSize,
+      })),
+      1499,
+      "Paid"
+    );
+
+    setCreatedAppId(appId);
+    markSubmitted();
+    clearGstDraft();
+    setScreenIndex(4);
   };
 
   return (
@@ -300,7 +324,7 @@ export const GstRegistrationScreen: React.FC = () => {
       </View>
 
       {/* 4-Step Indicator */}
-      {screenIndex < 3 && (
+      {screenIndex < 4 && (
         <GstStepIndicator
           steps={STEPS}
           currentStep={screenIndex}
@@ -313,7 +337,7 @@ export const GstRegistrationScreen: React.FC = () => {
         style={styles.scrollView}
         contentContainerStyle={[
           styles.scrollContent,
-          screenIndex === 3 && { paddingBottom: 24 },
+          screenIndex === 4 && { paddingBottom: 24 },
         ]}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
@@ -358,6 +382,14 @@ export const GstRegistrationScreen: React.FC = () => {
         )}
 
         {screenIndex === 3 && (
+          <GstRegistrationPaymentStep
+            businessName={businessData.businessName || businessData.legalName || "Your Business"}
+            onPaymentSuccess={handlePaymentSuccess}
+            onBackToReview={() => setScreenIndex(2)}
+          />
+        )}
+
+        {screenIndex === 4 && (
           <GstApplicationStatusStep
             appId={createdAppId}
             businessName={businessData.businessName || "Your Business"}
@@ -366,7 +398,7 @@ export const GstRegistrationScreen: React.FC = () => {
           />
         )}
 
-        {/* Action Button - In scroll view so it stays cleanly at the bottom */}
+        {/* Action Button - shown on steps 0, 1, 2. Step 3 has its own dedicated Pay button inside GstRegistrationPaymentStep */}
         {screenIndex < 3 && (
           <View style={styles.buttonWrapper}>
             <TouchableOpacity

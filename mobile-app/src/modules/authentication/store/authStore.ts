@@ -29,6 +29,8 @@ const toCustomer = (u: DevUser): Customer => ({
   mobile: u.mobileNumber,
   customerId: u.customerId,
   avatarUri: u.avatarUri,
+  profileCompleted: Boolean(u.registrationCompleted || (u as any).profileCompleted),
+  hasPasscode: Boolean(u.passcode || (u as any).hasPasscode),
 });
 
 const initialUser = authService.getCurrentUser();
@@ -42,7 +44,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   // Flow State
   authFlowState: "ENTER_MOBILE",
-  isExistingUser: false,
+  isExistingUser: Boolean(initialUser && initialUser.customerId),
+  customerExists: Boolean(initialUser && initialUser.customerId),
+  profileCompleted: Boolean(initialUser && initialUser.registrationCompleted && initialUser.passcode),
+  hasPasscode: Boolean(initialUser && initialUser.passcode),
   isLoading: false,
   error: null,
 
@@ -56,7 +61,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   confirmPasscode: "",
 
   // Onboarding & Service Access
-  profileCompleted: Boolean(initialUser && initialUser.registrationCompleted && initialUser.passcode),
   pendingServiceRoute: null,
   isCompleteProfileModalOpen: false,
 
@@ -108,6 +112,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }),
   resetTimer: (initialSeconds = 30) => set({ otpTimer: initialSeconds, canResendOTP: false }),
 
+  // Check user existence in DB
+  checkUser: async (overrideMobile?: string) => {
+    const mobileToUse = overrideMobile || get().mobileNumber;
+    const cleanMobile = mobileToUse.replace(/\D/g, "");
+    if (cleanMobile.length !== 10) return { exists: false, customerExists: false, profileCompleted: false, hasPasscode: false };
+    const res = await authService.checkUser(cleanMobile);
+    set({
+      customerExists: res.customerExists,
+      profileCompleted: res.profileCompleted,
+      hasPasscode: res.hasPasscode,
+      isExistingUser: res.customerExists,
+    });
+    return res;
+  },
+
   // Business Flow Operations
   sendOtp: async (overrideMobile?: string) => {
     const mobileToUse = overrideMobile || get().mobileNumber;
@@ -117,17 +136,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return false;
     }
 
+    const cleanMobile = mobileToUse.replace(/\D/g, "");
     set({ isLoading: true, error: null });
     try {
-      const res = await authService.sendOtp(mobileToUse);
+      // 1. Check database status for user state
+      const checkRes = await authService.checkUser(cleanMobile);
+
+      // 2. Send OTP
+      const res = await authService.sendOtp(cleanMobile);
       if (!res.success) {
         set({ isLoading: false, error: res.message || "Failed to send OTP. Could not reach server." });
         return false;
       }
+
       set({
         isLoading: false,
         error: null,
-        mobileNumber: mobileToUse,
+        mobileNumber: cleanMobile,
+        customerExists: checkRes.customerExists,
+        isExistingUser: checkRes.customerExists,
+        profileCompleted: checkRes.profileCompleted,
+        hasPasscode: checkRes.hasPasscode,
         authFlowState: "OTP_VERIFICATION",
         otp: "",
         otpTimer: 30,
@@ -159,15 +188,81 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         return { success: false };
       }
 
-      if (res.isExistingUser) {
-        set({
-          isExistingUser: true,
-          authFlowState: "PASSCODE_LOGIN",
-          passcode: "",
-          error: null,
-        });
-        return { success: true, isExistingUser: true };
+      const customerExists = res.customerExists ?? get().customerExists;
+      const profileCompleted = res.profileCompleted ?? get().profileCompleted;
+      const hasPasscode = res.hasPasscode ?? get().hasPasscode;
+
+      set({
+        customerExists,
+        isExistingUser: customerExists,
+        profileCompleted,
+        hasPasscode,
+      });
+
+      // DECISION TREE
+      // 1. Existing customer
+      if (customerExists) {
+        if (profileCompleted) {
+          // Complete profile -> Requires Passcode (if configured) -> Dashboard
+          if (hasPasscode) {
+            set({
+              authFlowState: "PASSCODE_LOGIN",
+              passcode: "",
+              error: null,
+            });
+            return { success: true, isExistingUser: true, requiresPasscode: true, profileCompleted: true };
+          } else {
+            // Edge case: complete profile but no passcode -> Dashboard
+            if (res.user) {
+              set({
+                isLoggedIn: true,
+                profileCompleted: true,
+                authenticatedUser: res.user,
+                customer: toCustomer(res.user),
+                error: null,
+              });
+            }
+            return { success: true, isExistingUser: true, requiresPasscode: false, profileCompleted: true };
+          }
+        } else {
+          // Incomplete profile -> If has passcode, prompt passcode -> Dashboard -> then Complete Profile on service
+          if (hasPasscode) {
+            set({
+              authFlowState: "PASSCODE_LOGIN",
+              passcode: "",
+              error: null,
+            });
+            return { success: true, isExistingUser: true, requiresPasscode: true, profileCompleted: false };
+          } else {
+            // Incomplete profile without passcode -> Dashboard (profileCompleted: false)
+            const cleanMobile = mobileNumber.replace(/\D/g, "");
+            const placeholderUser: DevUser = res.user || authStorage.getUserByMobile(cleanMobile) || {
+              customerId: `CUST-2026-${cleanMobile.slice(-5) || "00001"}`,
+              mobileNumber: cleanMobile,
+              name: "Valued Client",
+              email: `${cleanMobile}@taxedge.in`,
+              customerType: "Individual",
+              registrationCompleted: false,
+            };
+            authStorage.saveUser(placeholderUser);
+            authStorage.saveSession({
+              isLoggedIn: true,
+              activeMobile: cleanMobile,
+              lastLoginAt: new Date().toISOString(),
+            });
+
+            set({
+              isLoggedIn: true,
+              profileCompleted: false,
+              authenticatedUser: placeholderUser,
+              customer: toCustomer(placeholderUser),
+              error: null,
+            });
+            return { success: true, isExistingUser: true, requiresPasscode: false, profileCompleted: false };
+          }
+        }
       } else {
+        // 2. New User -> OTP -> Dashboard (profileCompleted: false)
         const cleanMobile = mobileNumber.replace(/\D/g, "");
         const placeholderUser: DevUser = res.user || authStorage.getUserByMobile(cleanMobile) || {
           customerId: `CUST-2026-${cleanMobile.slice(-5) || "00001"}`,
@@ -186,13 +281,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
         set({
           isExistingUser: false,
+          customerExists: false,
           isLoggedIn: true,
           profileCompleted: false,
           authenticatedUser: placeholderUser,
           customer: toCustomer(placeholderUser),
           error: null,
         });
-        return { success: true, isExistingUser: false };
+        return { success: true, isExistingUser: false, requiresPasscode: false, profileCompleted: false };
       }
     } catch (err: any) {
       set({ isLoading: false, error: err?.message || "Invalid OTP. Please try again." });
@@ -217,10 +313,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { mobileNumber } = get();
       const res = await authService.loginWithPasscode(mobileNumber, code);
       if (res.success && res.user) {
+        const isProfileComplete = res.profileCompleted ?? (res.user.registrationCompleted ?? get().profileCompleted);
         set({
           isLoading: false,
           isLoggedIn: true,
-          profileCompleted: true,
+          customerExists: true,
+          profileCompleted: isProfileComplete,
           authenticatedUser: res.user,
           customer: toCustomer(res.user),
           error: null,
@@ -235,6 +333,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return { success: false, error: msg };
     }
   },
+
 
   startForgotPasscode: async () => {
     const { mobileNumber } = get();
@@ -374,6 +473,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       passcode: "",
       confirmPasscode: "",
       isExistingUser: false,
+      customerExists: false,
+      profileCompleted: false,
+      hasPasscode: false,
       error: null,
       isCompleteProfileModalOpen: false,
     });
@@ -396,14 +498,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (autoLogin) {
         set({
           isLoggedIn: true,
+          customerExists: true,
           profileCompleted: true,
+          hasPasscode: true,
           mobileNumber: res.user.mobileNumber,
           customer: toCustomer(res.user),
           authenticatedUser: res.user,
+          isCompleteProfileModalOpen: false,
         });
       } else {
         set({
+          customerExists: true,
           profileCompleted: true,
+          hasPasscode: true,
+          isCompleteProfileModalOpen: false,
         });
       }
       return { success: true };
@@ -420,10 +528,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     authService.logout();
     set({
       isLoggedIn: false,
+      customerExists: false,
       profileCompleted: false,
+      hasPasscode: false,
       customer: null,
       authenticatedUser: null,
       mobileNumber: "",
+      otp: "",
+      passcode: "",
+      confirmPasscode: "",
       authFlowState: "ENTER_MOBILE",
       pendingServiceRoute: null,
       isCompleteProfileModalOpen: false,
@@ -432,9 +545,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   syncFromDevAuth: () => {
     const u = authService.getCurrentUser();
+    const isAuth = Boolean(authService.isAuthenticated() && u);
     set({
-      isLoggedIn: Boolean(authService.isAuthenticated() && u),
-      profileCompleted: Boolean(u && u.registrationCompleted && u.passcode),
+      isLoggedIn: isAuth,
+      customerExists: Boolean(u),
+      profileCompleted: Boolean(u && (u.registrationCompleted || (u as any).profileCompleted)),
+      hasPasscode: Boolean(u && (u.passcode || (u as any).hasPasscode)),
       mobileNumber: u?.mobileNumber || "",
       customer: u ? toCustomer(u) : null,
       authenticatedUser: u,

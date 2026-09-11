@@ -20,6 +20,7 @@ import { useColorScheme } from "../../hooks/use-color-scheme";
 import { useAuthStore } from "../../store/authStore";
 import { useApplicationStore } from "../../store/applicationStore";
 import { useNotificationStore } from "../../store/notificationStore";
+import { useServiceAccessGuard } from "../../shared/hooks/useServiceAccessGuard";
 import { SavingsJarAnimation } from "../../components/SavingsJarAnimation";
 import { SERVICE_CATALOGUE } from "../../data/catalogue";
 import { SCREEN_BOTTOM_PADDING } from "../../components/ScreenLayout";
@@ -145,21 +146,74 @@ const UPCOMING_DEADLINES: Deadline[] = [
   },
 ];
 
-const MORE_TILE: ServiceTile = {
-  id: "more",
-  label: "More Services",
-  icon: "grid",
-  tint: "#083B75",
-  tintBg: "#E7EDF5",
-  isMore: true,
+const SERVICE_ICONS = {
+  incorporation: require("../../../assets/images/services/incorporation.png"),
+  gst: require("../../../assets/images/services/gst.png"),
+  itr: require("../../../assets/images/services/itr.png"),
+  projects: require("../../../assets/images/services/projects.png"),
+  loans: require("../../../assets/images/services/loans.png"),
+  insurance: require("../../../assets/images/services/insurance.png"),
+  business: require("../../../assets/images/services/business.png"),
+  more_services: require("../../../assets/images/services/more_services.png"),
 };
 
-/* The home row has ONLY 4 Quick Services: GST / ITR / Loans / More Services */
-const HOME_TILES: ServiceTile[] = [
-  SERVICE_TILES[0], // GST -> /service/gst
-  SERVICE_TILES[1], // ITR -> /service/itr
-  SERVICE_TILES[3], // Loans -> /service/loans
-  { ...MORE_TILE, label: "More\nServices" },
+export interface DashboardServiceTile {
+  id: string;
+  label: string;
+  image: any;
+  route?: any;
+  isMore?: boolean;
+}
+
+export const DASHBOARD_SERVICES: DashboardServiceTile[] = [
+  {
+    id: "incorporation",
+    label: "Incorporation",
+    image: SERVICE_ICONS.incorporation,
+    route: "/service/company-registration",
+  },
+  {
+    id: "gst",
+    label: "GST",
+    image: SERVICE_ICONS.gst,
+    route: "/service/gst",
+  },
+  {
+    id: "itr",
+    label: "ITR",
+    image: SERVICE_ICONS.itr,
+    route: "/service/itr",
+  },
+  {
+    id: "projects",
+    label: "Projects",
+    image: SERVICE_ICONS.projects,
+    route: { pathname: "/services", params: { selectedCategory: "BUSINESS" } },
+  },
+  {
+    id: "loans",
+    label: "Loans",
+    image: SERVICE_ICONS.loans,
+    route: "/service/loans",
+  },
+  {
+    id: "insurance",
+    label: "Insurance",
+    image: SERVICE_ICONS.insurance,
+    route: { pathname: "/services", params: { selectedCategory: "INSURANCE" } },
+  },
+  {
+    id: "business",
+    label: "Business",
+    image: SERVICE_ICONS.business,
+    route: { pathname: "/services", params: { selectedCategory: "BUSINESS" } },
+  },
+  {
+    id: "more",
+    label: "More Services",
+    image: SERVICE_ICONS.more_services,
+    isMore: true,
+  },
 ];
 
 /* Swipeable "apply for" banners. id matches a category in data/services.ts. */
@@ -188,6 +242,7 @@ export default function HomeScreen() {
   const scheme = useColorScheme();
   const isDark = scheme === "dark";
   const router = useRouter();
+  const { accessService } = useServiceAccessGuard();
   const insets = useSafeAreaInsets();
 
   const [bannerPage, setBannerPage] = useState(0);
@@ -256,14 +311,16 @@ export default function HomeScreen() {
     }
   };
 
-  const openTile = (tile: ServiceTile) => {
+  const openTile = (tile: DashboardServiceTile | ServiceTile) => {
     if (tile.isMore) {
       setMoreQuery("");
       setMoreOpen(true);
       return;
     }
     setMoreOpen(false);
-    if (tile.route) router.push(tile.route);
+    if (tile.route) {
+      accessService(tile.route);
+    }
   };
 
   /* Catalogue narrowed by the sheet's search box; empty sections drop out. */
@@ -421,33 +478,41 @@ export default function HomeScreen() {
           </View>
         </View>
 
-        {/* ---------- Quick Services ---------- */}
+        {/* ---------- Services ---------- */}
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Services</Text>
-          <TouchableOpacity onPress={() => setMoreOpen(true)} hitSlop={8} style={styles.linkRow}>
-            <Text style={[styles.viewAllText, { color: colors.primary }]}>All Services</Text>
-            <Ionicons name="chevron-forward" size={14} color={colors.primary} />
-          </TouchableOpacity>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Services</Text>
         </View>
 
-        <View style={[styles.card, { backgroundColor: colors.backgroundElement, borderColor: colors.border }]}>
-          <View style={styles.quickRow}>
-            {HOME_TILES.map((tile) => (
-              <TouchableOpacity
-                key={tile.id}
-                activeOpacity={0.75}
-                onPress={() => openTile(tile)}
-                style={styles.quickTile}
+        <View style={styles.servicesGrid}>
+          {DASHBOARD_SERVICES.map((service) => (
+            <TouchableOpacity
+              key={service.id}
+              activeOpacity={0.75}
+              onPress={() => openTile(service)}
+              style={[
+                styles.serviceCard,
+                {
+                  backgroundColor: isDark ? colors.backgroundElement : "#FFFFFF",
+                  borderColor: isDark ? colors.border : "#E2E8F0",
+                },
+              ]}
+            >
+              <Image
+                source={service.image}
+                style={styles.serviceIconImage}
+                resizeMode="contain"
+              />
+              <Text
+                style={[
+                  styles.serviceCardLabel,
+                  { color: isDark ? colors.text : "#0A2540" },
+                ]}
+                numberOfLines={2}
               >
-                <View style={[styles.circleIcon, { backgroundColor: tileBg(tile) }]}>
-                  <Ionicons name={tile.icon} size={24} color={tileFg(tile)} />
-                </View>
-                <Text style={[styles.circleLabel, { color: colors.text }]} numberOfLines={2}>
-                  {tile.label}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
+                {service.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </View>
         <View style={styles.sectionHeader}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Financial Overview</Text>

@@ -1,4 +1,5 @@
 import { apiClient } from "../../../core/api/apiClient";
+import { tokenManager } from "../../../core/authentication/tokenManager";
 import type { DevUser, RegistrationData } from "../types/auth.types";
 
 export interface SendOtpResponse {
@@ -9,13 +10,20 @@ export interface SendOtpResponse {
 export interface VerifyOtpResponse {
   success: boolean;
   isExistingUser?: boolean;
+  customerExists?: boolean;
+  profileCompleted?: boolean;
+  hasPasscode?: boolean;
   message?: string;
   user?: DevUser;
+  customer?: any;
 }
 
 export interface CheckUserResponse {
   success: boolean;
   exists: boolean;
+  customerExists?: boolean;
+  profileCompleted?: boolean;
+  hasPasscode?: boolean;
   user?: DevUser;
 }
 
@@ -62,12 +70,31 @@ export const authApi = {
       const res = await apiClient.post<any>("/otp/verify", { mobileNumber: cleanMobile, otpCode: otp });
       console.log("✅ [OTP] Backend verified OTP successfully:", res);
 
-      // Backend returns { success, isExistingUser, message } — read it directly
-      const isExistingUser = res?.isExistingUser === true;
+      const customerExists = res?.customerExists === true || res?.isExistingUser === true;
+      const profileCompleted = res?.profileCompleted === true;
+      const hasPasscode = res?.hasPasscode === true;
+
+      let devUser: DevUser | undefined;
+      if (res?.customer) {
+        devUser = {
+          customerId: res.customer.custId,
+          name: res.customer.name,
+          email: res.customer.email,
+          mobileNumber: res.customer.mobileNumber || cleanMobile,
+          customerType: res.customer.customerType,
+          registrationCompleted: profileCompleted,
+        };
+      }
+
       return {
         success: true,
-        isExistingUser,
+        isExistingUser: customerExists,
+        customerExists,
+        profileCompleted,
+        hasPasscode,
         message: res?.message || "OTP verified successfully",
+        user: devUser,
+        customer: res?.customer,
       };
     } catch (error: any) {
       console.log("ℹ️ [OTP] Incorrect OTP entered for:", cleanMobile);
@@ -75,15 +102,27 @@ export const authApi = {
         error?.message && error.message !== "Request failed" && !error.message.includes("status code")
           ? error.message
           : "Incorrect OTP code. Please enter the valid OTP sent to your terminal.";
-      return { success: false, isExistingUser: false, message: backendMsg };
+      return { success: false, isExistingUser: false, customerExists: false, profileCompleted: false, hasPasscode: false, message: backendMsg };
     }
   },
 
   checkUser: async (mobileNumber: string): Promise<CheckUserResponse> => {
+    const cleanMobile = mobileNumber.replace(/\D/g, "");
     try {
-      return await apiClient.post<CheckUserResponse>("/auth/check-user", { mobileNumber });
-    } catch {
-      return { success: true, exists: false };
+      console.log(`🚀 [API] Checking customer status GET /customer/exists/${cleanMobile}`);
+      const res = await apiClient.get<any>(`/customer/exists/${cleanMobile}`);
+      console.log(`✅ [API] Customer status for ${cleanMobile}:`, res);
+      const exists = res?.exists === true || res?.customerExists === true;
+      return {
+        success: true,
+        exists,
+        customerExists: exists,
+        profileCompleted: res?.profileCompleted === true,
+        hasPasscode: res?.hasPasscode === true,
+      };
+    } catch (err: any) {
+      console.warn("Error calling /customer/exists:", err?.message);
+      return { success: false, exists: false, customerExists: false, profileCompleted: false, hasPasscode: false };
     }
   },
 
@@ -161,6 +200,10 @@ export const authApi = {
       const response = await apiClient.post<any>("/customer/register", payload);
       console.log("✅ Backend Registration Response:", response);
 
+      if (response?.accessToken) {
+        tokenManager.setAccessToken(response.accessToken).catch(() => {});
+      }
+
       return {
         success: true,
         user: {
@@ -168,6 +211,8 @@ export const authApi = {
           mobileNumber: response.mobileNumber || data.mobileNumber,
           name: response.name || data.name,
           email: data.email,
+          customerType: data.customerType || "Individual",
+          registrationCompleted: true,
           pushToken: data.pushToken,
         },
         token: response.accessToken,
@@ -200,6 +245,10 @@ export const authApi = {
       });
       console.log("✅ Backend Login Response:", response);
 
+      if (response?.accessToken) {
+        tokenManager.setAccessToken(response.accessToken).catch(() => {});
+      }
+
       return {
         success: true,
         token: response.accessToken,
@@ -208,6 +257,8 @@ export const authApi = {
           mobileNumber: response.mobileNumber,
           name: response.name,
           email: `${response.mobileNumber}@taxedge.in`,
+          customerType: response.customerType || "Individual",
+          registrationCompleted: response.profileCompleted !== false,
         },
       };
     } catch (error: any) {

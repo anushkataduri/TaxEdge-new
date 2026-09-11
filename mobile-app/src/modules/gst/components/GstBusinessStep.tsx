@@ -8,9 +8,11 @@ import {
   Platform,
   Modal,
   FlatList,
+  ActivityIndicator,
 } from "react-native";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BrandColors } from "../../../shared/theme";
+import ifscService, { IfscLookupError } from "../services/ifscService";
 
 const BUSINESS_TYPES = [
   "Proprietorship",
@@ -56,13 +58,42 @@ const PLACE_OF_BUSINESS_OPTIONS = [
 ];
 
 const STATE_OPTIONS = [
+  "Andaman and Nicobar Islands",
   "Andhra Pradesh",
+  "Arunachal Pradesh",
+  "Assam",
+  "Bihar",
+  "Chandigarh",
+  "Chhattisgarh",
+  "Dadra and Nagar Haveli and Daman and Diu",
   "Delhi",
+  "Goa",
   "Gujarat",
+  "Haryana",
+  "Himachal Pradesh",
+  "Jammu and Kashmir",
+  "Jharkhand",
   "Karnataka",
+  "Kerala",
+  "Ladakh",
+  "Lakshadweep",
+  "Madhya Pradesh",
   "Maharashtra",
+  "Manipur",
+  "Meghalaya",
+  "Mizoram",
+  "Nagaland",
+  "Odisha",
+  "Puducherry",
+  "Punjab",
+  "Rajasthan",
+  "Sikkim",
   "Tamil Nadu",
   "Telangana",
+  "Tripura",
+  "Uttar Pradesh",
+  "Uttarakhand",
+  "West Bengal",
 ];
 
 const BANK_OPTIONS = [
@@ -145,6 +176,12 @@ export const GstBusinessStep: React.FC<GstBusinessStepProps> = ({
   const [isBankExpanded, setIsBankExpanded] = useState(false);
   const [isSignatoryExpanded, setIsSignatoryExpanded] = useState(false);
 
+  // Bank matching & IFSC states
+  const [internalConfirmError, setInternalConfirmError] = useState("");
+  const [isIfscLoading, setIsIfscLoading] = useState(false);
+  const [ifscVerified, setIfscVerified] = useState(Boolean(data.ifscCode && data.bankName && data.branchName));
+  const [ifscErrorText, setIfscErrorText] = useState("");
+
   // Auto-expand accordions if they contain errors (checked when submit is pressed)
   useEffect(() => {
     const hasBankError = Boolean(errors.accountHolderName || errors.bankAccountNumber || errors.confirmBankAccountNumber || errors.ifscCode || errors.bankName || errors.branchName || errors.accountType);
@@ -203,13 +240,67 @@ export const GstBusinessStep: React.FC<GstBusinessStepProps> = ({
   };
 
   const handleBankAccChange = (text: string) => {
-    const cleaned = text.replace(/\D/g, "");
+    const cleaned = text.replace(/\D/g, "").slice(0, 18);
     onChange({ bankAccountNumber: cleaned });
+    if (data.confirmBankAccountNumber) {
+      if (cleaned !== data.confirmBankAccountNumber) {
+        setInternalConfirmError("Bank account numbers do not match");
+      } else {
+        setInternalConfirmError("");
+      }
+    }
+  };
+
+  const handleConfirmBankAccChange = (text: string) => {
+    const cleaned = text.replace(/\D/g, "").slice(0, 18);
+    onChange({ confirmBankAccountNumber: cleaned });
+    if (cleaned && data.bankAccountNumber && cleaned !== data.bankAccountNumber) {
+      setInternalConfirmError("Bank account numbers do not match");
+    } else {
+      setInternalConfirmError("");
+    }
   };
 
   const handleIfscChange = (text: string) => {
-    const cleaned = text.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-    onChange({ ifscCode: cleaned });
+    const cleaned = text.replace(/[^a-zA-Z0-9]/g, "").toUpperCase().slice(0, 11);
+    // If user changes IFSC: clear previously auto-fetched bank and branch immediately
+    onChange({
+      ifscCode: cleaned,
+      bankName: "",
+      branchName: "",
+    });
+    setIfscVerified(false);
+    setIfscErrorText("");
+
+    if (cleaned.length === 11) {
+      if (!ifscService.isValidFormat(cleaned)) {
+        setIfscErrorText("Enter a valid IFSC code");
+        return;
+      }
+      setIsIfscLoading(true);
+      ifscService
+        .lookup(cleaned)
+        .then((res) => {
+          onChange({
+            ifscCode: cleaned,
+            bankName: res.bank,
+            branchName: res.branch,
+          });
+          setIfscVerified(true);
+          setIfscErrorText("");
+        })
+        .catch((err: any) => {
+          setIfscVerified(false);
+          if (err instanceof IfscLookupError) {
+            setIfscErrorText(err.message);
+          } else {
+            setIfscErrorText("Unable to verify IFSC. Please try again.");
+          }
+        })
+        .finally(() => {
+          setIsIfscLoading(false);
+        });
+    }
   };
 
   return (
@@ -499,24 +590,38 @@ export const GstBusinessStep: React.FC<GstBusinessStepProps> = ({
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>Confirm Account Number *</Text>
             <TextInput
-              style={[styles.input, errors.confirmBankAccountNumber && styles.inputError]}
+              style={[
+                styles.input,
+                (internalConfirmError || errors.confirmBankAccountNumber) && styles.inputError,
+              ]}
               placeholder="Re-enter account number"
               placeholderTextColor="#94A3B8"
               value={data.confirmBankAccountNumber}
-              onChangeText={(t) => onChange({ confirmBankAccountNumber: t.replace(/\D/g, "") })}
-              onBlur={() => onBlurField?.("confirmBankAccountNumber")}
+              onChangeText={handleConfirmBankAccChange}
+              onBlur={() => {
+                if (data.confirmBankAccountNumber && data.bankAccountNumber && data.confirmBankAccountNumber !== data.bankAccountNumber) {
+                  setInternalConfirmError("Bank account numbers do not match");
+                }
+                onBlurField?.("confirmBankAccountNumber");
+              }}
               keyboardType="numeric"
               maxLength={18}
             />
-            {errors.confirmBankAccountNumber ? (
-              <Text style={styles.errorText}>{errors.confirmBankAccountNumber}</Text>
+            {internalConfirmError || errors.confirmBankAccountNumber ? (
+              <Text style={styles.errorText}>
+                {internalConfirmError || errors.confirmBankAccountNumber}
+              </Text>
             ) : null}
           </View>
 
           <View style={styles.fieldGroup}>
             <Text style={styles.label}>IFSC Code *</Text>
             <TextInput
-              style={[styles.input, errors.ifscCode && styles.inputError]}
+              style={[
+                styles.input,
+                (ifscErrorText || errors.ifscCode) && styles.inputError,
+                ifscVerified && styles.inputVerified,
+              ]}
               placeholder="e.g. HDFC0001234"
               placeholderTextColor="#94A3B8"
               value={data.ifscCode}
@@ -525,37 +630,71 @@ export const GstBusinessStep: React.FC<GstBusinessStepProps> = ({
               autoCapitalize="characters"
               maxLength={11}
             />
-            {errors.ifscCode ? (
-              <Text style={styles.errorText}>{errors.ifscCode}</Text>
+            {isIfscLoading && (
+              <View style={styles.ifscStatusRow}>
+                <ActivityIndicator size="small" color={BrandColors.PRIMARY_BLUE} />
+                <Text style={styles.ifscLoadingText}>Verifying IFSC...</Text>
+              </View>
+            )}
+            {!isIfscLoading && ifscVerified && (
+              <View style={styles.ifscStatusRow}>
+                <Ionicons name="checkmark-circle" size={16} color="#16A34A" />
+                <Text style={styles.ifscVerifiedText}>✓ IFSC verified</Text>
+              </View>
+            )}
+            {!isIfscLoading && (ifscErrorText || errors.ifscCode) ? (
+              <Text style={styles.errorText}>{ifscErrorText || errors.ifscCode}</Text>
             ) : null}
           </View>
 
-          {/* Bank Name & Branch */}
+          {/* Auto-populated Bank Name & Branch */}
           <View style={styles.row}>
             <View style={styles.halfField}>
               <Text style={styles.label}>Bank Name *</Text>
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => setShowBankModal(true)}
-                style={[styles.selectInput, errors.bankName && styles.inputError]}
+              <View
+                style={[
+                  styles.autoFilledBox,
+                  ifscVerified && styles.autoFilledBoxVerified,
+                  errors.bankName && styles.inputError,
+                ]}
               >
-                <Text style={[styles.selectText, !data.bankName && styles.placeholderText, { flex: 1, paddingRight: 4 }]} numberOfLines={1}>
-                  {data.bankName || "Select"}
+                <Text
+                  style={[
+                    styles.autoFilledText,
+                    !data.bankName && styles.placeholderText,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {data.bankName || "Auto-fetched"}
                 </Text>
-                <Ionicons name="chevron-down" size={18} color="#1E293B" />
-              </TouchableOpacity>
+                {ifscVerified && (
+                  <Ionicons name="shield-checkmark" size={15} color="#16A34A" />
+                )}
+              </View>
               {errors.bankName ? <Text style={styles.errorText}>{errors.bankName}</Text> : null}
             </View>
             <View style={styles.halfField}>
               <Text style={styles.label}>Branch *</Text>
-              <TextInput
-                style={[styles.input, errors.branchName && styles.inputError]}
-                placeholder="Branch Name"
-                placeholderTextColor="#94A3B8"
-                value={data.branchName}
-                onChangeText={(t) => onChange({ branchName: t })}
-                onBlur={() => onBlurField?.("branchName")}
-              />
+              <View
+                style={[
+                  styles.autoFilledBox,
+                  ifscVerified && styles.autoFilledBoxVerified,
+                  errors.branchName && styles.inputError,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.autoFilledText,
+                    !data.branchName && styles.placeholderText,
+                  ]}
+                  numberOfLines={1}
+                >
+                  {data.branchName || "Auto-fetched"}
+                </Text>
+                {ifscVerified && (
+                  <Ionicons name="shield-checkmark" size={15} color="#16A34A" />
+                )}
+              </View>
               {errors.branchName ? <Text style={styles.errorText}>{errors.branchName}</Text> : null}
             </View>
           </View>
@@ -629,7 +768,7 @@ export const GstBusinessStep: React.FC<GstBusinessStepProps> = ({
                 style={[styles.dateInput, errors.signatoryDob && styles.inputError, { height: 50, paddingHorizontal: 10 }]}
               >
                 <Text style={[styles.selectText, !data.signatoryDob && styles.placeholderText, { flex: 1, fontSize: 13 }]} numberOfLines={1}>
-                  {data.signatoryDob || "mm/dd/yyyy"}
+                  {data.signatoryDob || "DD-MM-YYYY"}
                 </Text>
                 <Ionicons name="calendar-outline" size={18} color={errors.signatoryDob ? "#DC2626" : BrandColors.PRIMARY_ORANGE} />
               </TouchableOpacity>
@@ -1178,6 +1317,49 @@ const styles = StyleSheet.create({
   inputError: {
     borderColor: "#EF4444",
     backgroundColor: "#FEF2F2",
+  },
+  inputVerified: {
+    borderColor: "#16A34A",
+    backgroundColor: "#F0FDF4",
+  },
+  ifscStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginTop: 6,
+  },
+  ifscLoadingText: {
+    fontSize: 12,
+    color: "#0369A1",
+    fontWeight: "500",
+  },
+  ifscVerifiedText: {
+    fontSize: 12,
+    color: "#16A34A",
+    fontWeight: "600",
+  },
+  autoFilledBox: {
+    height: 50,
+    backgroundColor: "#F8FAFC",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  autoFilledBoxVerified: {
+    backgroundColor: "#F0FDF4",
+    borderColor: "#BBF7D0",
+  },
+  autoFilledText: {
+    fontSize: 13,
+    color: BrandColors.TEXT_PRIMARY,
+    fontWeight: "600",
+    flex: 1,
+    paddingRight: 4,
+    fontFamily: Platform.select({ ios: "System", android: "sans-serif-medium" }),
   },
   errorText: {
     fontSize: 11.5,

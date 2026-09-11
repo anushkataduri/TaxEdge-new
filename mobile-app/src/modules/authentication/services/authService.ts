@@ -19,55 +19,78 @@ export const authService = {
     return res;
   },
 
-  async verifyOtp(mobileNumber: string, otp: string): Promise<{ success: boolean; isExistingUser: boolean; user?: DevUser; message?: string }> {
+  async verifyOtp(mobileNumber: string, otp: string): Promise<AuthResult & { customerExists?: boolean; profileCompleted?: boolean; hasPasscode?: boolean }> {
     const clean = mobileNumber.replace(/\D/g, "");
     const apiRes = await authApi.verifyOtp(clean, otp);
     if (!apiRes.success) {
       return {
         success: false,
         isExistingUser: false,
+        customerExists: false,
+        profileCompleted: false,
+        hasPasscode: false,
         message: apiRes.message || "Invalid OTP code",
       };
     }
 
-    // isExistingUser comes directly from the backend /otp/verify response
-    // which checks customerRepository.findByMobileNumber() in the DB
-    const isExisting = apiRes.isExistingUser === true;
+    const customerExists = apiRes.customerExists === true || apiRes.isExistingUser === true;
+    const profileCompleted = apiRes.profileCompleted === true;
+    const hasPasscode = apiRes.hasPasscode === true;
 
-    // Local storage sync: if user exists in backend but not cached locally, create a placeholder
-    const existing = authStorage.getUserByMobile(clean);
-    if (isExisting && !existing) {
-      const placeholderUser: DevUser = {
+    let user = apiRes.user || authStorage.getUserByMobile(clean);
+    if (customerExists && !user) {
+      user = {
         customerId: `CUST-2026-${clean.slice(-5)}`,
         mobileNumber: clean,
         name: "Valued Client",
         email: `${clean}@taxedge.in`,
         customerType: "Individual",
-        registrationCompleted: true,
+        registrationCompleted: profileCompleted,
       };
-      authStorage.saveUser(placeholderUser);
+      authStorage.saveUser(user);
+    } else if (user) {
+      user.registrationCompleted = profileCompleted;
+      authStorage.saveUser(user);
     }
 
     return {
       success: true,
-      isExistingUser: isExisting,
-      user: existing || authStorage.getUserByMobile(clean) || undefined,
+      isExistingUser: customerExists,
+      customerExists,
+      profileCompleted,
+      hasPasscode,
+      user: user || undefined,
     };
   },
 
-  async checkUser(mobileNumber: string): Promise<{ exists: boolean; user?: DevUser }> {
+  async checkUser(mobileNumber: string): Promise<{ exists: boolean; customerExists: boolean; profileCompleted: boolean; hasPasscode: boolean; user?: DevUser }> {
     const clean = mobileNumber.replace(/\D/g, "");
     try {
       const checkRes = await authApi.checkUser(clean);
-      if (checkRes && checkRes.exists) {
-        return { exists: true, user: authStorage.getUserByMobile(clean) || undefined };
+      if (checkRes && checkRes.success) {
+        const local = authStorage.getUserByMobile(clean);
+        return {
+          exists: checkRes.exists,
+          customerExists: checkRes.customerExists ?? checkRes.exists,
+          profileCompleted: checkRes.profileCompleted ?? false,
+          hasPasscode: checkRes.hasPasscode ?? false,
+          user: local || undefined,
+        };
       }
     } catch (e) {
       console.warn("Error calling backend checkUser:", e);
     }
     const existing = authStorage.getUserByMobile(clean);
-    return { exists: Boolean(existing && existing.passcode), user: existing || undefined };
+    const hasPass = Boolean(existing && existing.passcode);
+    return {
+      exists: hasPass,
+      customerExists: hasPass,
+      profileCompleted: Boolean(existing?.registrationCompleted),
+      hasPasscode: hasPass,
+      user: existing || undefined,
+    };
   },
+
 
   async registerUser(params: RegisterParams, autoLogin = false): Promise<AuthResult> {
     const mobile = (params.mobileNumber || "").replace(/\D/g, "");
@@ -141,7 +164,14 @@ export const authService = {
       });
     }
 
-    return { success: true, user, token: apiRes.token };
+    return {
+      success: true,
+      user,
+      token: apiRes.token,
+      profileCompleted: true,
+      customerExists: true,
+      hasPasscode: Boolean(passcode),
+    };
   },
 
   async createPasscode(mobileNumber: string, passcode: string): Promise<AuthResult> {
@@ -197,16 +227,33 @@ export const authService = {
         name: "Valued Client",
         email: `${clean}@taxedge.in`,
         customerType: "Individual",
+        registrationCompleted: true,
       };
-      authStorage.saveUser(user);
     }
+    if (apiRes.user) {
+      user = {
+        ...user,
+        ...apiRes.user,
+        passcode: pass,
+        registrationCompleted: apiRes.user.registrationCompleted ?? true,
+      };
+    }
+    authStorage.saveUser(user);
 
     authStorage.saveSession({
       isLoggedIn: true,
       activeMobile: clean,
       lastLoginAt: new Date().toISOString(),
     });
-    return { success: true, user, token: apiRes.token };
+    return {
+      success: true,
+      user,
+      token: apiRes.token,
+      profileCompleted: user.registrationCompleted,
+      customerExists: true,
+      hasPasscode: true,
+    };
+
   },
 
   async forgotPasscode(mobileNumber: string): Promise<{ success: boolean; message?: string }> {
